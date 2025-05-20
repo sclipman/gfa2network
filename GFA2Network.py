@@ -14,7 +14,7 @@ RAM, so even a 2 M-node / 3 M-edge graph fits comfortably on a 16 GB laptop.
 ----------
 Quick usage
 ------------
-Build *both* outputs (default: undirected graph, CSR matrix):
+Build *both* outputs (default: directed graph, CSR matrix):
 
     python GFA2Network.py input.gfa \
         --graph \
@@ -29,7 +29,7 @@ Matrix-only run (lowest RAM):
 Directed graph only, verbose progress:
 
     python GFA2Network.py input.gfa \
-        --directed --graph --verbose
+        --graph --verbose
 
 -------------
 Positional argument
@@ -43,8 +43,8 @@ Optional arguments
 --matrix PATH        Write an adjacency matrix to *PATH*.
                      Extensions: *.npz* (sparse), *.csv* or *.npy* (dense).
 --matrix-format FMT  Sparse format for *.npz* (**csr**, csc, coo, dok). Default *csr*.
---directed           Treat the graph as directed.
---undirected         Treat the graph as undirected (**default**).
+--directed           Treat the graph as directed (**default**).
+--undirected         Treat the graph as undirected.
 --weight-tag TAG     Use numeric value of GFA tag *TAG* (e.g. *RC*) as edge
                      weight; otherwise every edge weight = 1.
 --verbose            Emit progress to *stderr* (every 500 k lines + tqdm bars).
@@ -283,10 +283,19 @@ def main(argv: Iterable[str] | None = None):
     )
     p.add_argument("gfa", help="Input *.gfa* file")
     g = p.add_mutually_exclusive_group()
-    g.add_argument("--directed", action="store_true", default=False,
-                   help="Treat graph as directed")
-    g.add_argument("--undirected", action="store_true", default=True,
-                   help="Treat graph as undirected (default)")
+    g.add_argument(
+        "--directed",
+        dest="directed",
+        action="store_true",
+        default=True,
+        help="Treat graph as directed (default)",
+    )
+    g.add_argument(
+        "--undirected",
+        dest="directed",
+        action="store_false",
+        help="Treat graph as undirected",
+    )
     p.add_argument("--graph", action="store_true",
                    help="Build a NetworkX object")
     p.add_argument("--matrix", metavar="PATH",

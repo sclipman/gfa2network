@@ -16,14 +16,14 @@ processed on ordinary hardware.
 ## Quick start
 
 ```bash
-# build both outputs (undirected graph + CSR matrix)
+# build both outputs (directed graph + CSR matrix)
 python GFA2Network.py input.gfa --graph --matrix adj.npz
 
 # matrix only (lowest RAM) using COO format
 python GFA2Network.py input.gfa --matrix adj.npz --matrix-format coo
 
 # directed graph only with verbose progress
-python GFA2Network.py input.gfa --directed --graph --verbose
+python GFA2Network.py input.gfa --graph --verbose
 ```
 
 See `python GFA2Network.py -h` for all command line options.
@@ -49,5 +49,5 @@ specified path (`.npz`, `.npy` or `.csv`).
 
 ## License
 
-This repository does not currently contain an explicit license. Use at your own
-discretion.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for
+details.
