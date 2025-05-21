@@ -113,7 +113,7 @@ def parse_gfa(
     directed: bool = True,
     weight_tag: str | None = None,
     verbose: bool = False,
-):
+) -> nx.Graph | sp.coo_matrix | tuple[nx.Graph, sp.coo_matrix]:
     """
     Stream-parse *path* and return the requested artefacts.
 
