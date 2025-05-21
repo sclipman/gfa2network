@@ -56,8 +56,8 @@ gfa2network convert input.gfa --matrix adj.npz --matrix-format coo
 # directed graph only with verbose progress
 gfa2network convert input.gfa --graph --verbose
 
-# build an igraph graph
-gfa2network convert input.gfa --backend igraph -o graph.pkl
+# build an igraph graph and save it
+gfa2network convert input.gfa --graph --backend igraph -o graph.pkl
 
 # stream from stdin and strip orientations (legacy behaviour)
 cat input.gfa | gfa2network convert - --graph --strip-orientation
@@ -80,6 +80,7 @@ See `gfa2network -h` for all command line options.
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
+| `-o PATH, --output PATH` | Save graph pickle to PATH |
 | `--backend`        | Backend for graph building (`networkx`\|`igraph`) |
 | `--directed`       | Treat graph as directed (default) |
 | `--undirected`     | Treat graph as undirected |
@@ -138,9 +139,11 @@ weights with `--weight-tag TAG`.
 ## Output
 
 If `--graph` is provided, a NetworkX graph is exposed as `G` when running the
-script directly. With `--matrix PATH`, an adjacency matrix is written to the
-specified path (`.npz`, `.npy` or `.csv`).  Matrices are produced in COO format
-and can be converted to other sparse formats via the `convert_format` helper.
+script directly.  Use `-o PATH`/`--output PATH` to save the graph to disk
+(NetworkX `gpickle` or igraph pickle).  With `--matrix PATH`, an adjacency
+matrix is written to the specified path (`.npz`, `.npy` or `.csv`).  Matrices
+are produced in COO format and can be converted to other sparse formats via the
+`convert_format` helper.
 
 ## License
 
