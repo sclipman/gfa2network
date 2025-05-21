@@ -4,7 +4,9 @@ import argparse
 from pathlib import Path
 import sys
 
+import networkx as nx
 from .builders import parse_gfa
+from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
 from .utils import convert_format, save_matrix
 from .analysis import compute_stats
 from .version import __version__
@@ -51,7 +53,14 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Strip +/- from IDs (v0.1 behaviour)",
     )
+    p_conv.add_argument("--bidirected", action="store_true", help="Use bidirected representation")
     p_conv.add_argument("--verbose", action="store_true")
+
+    p_exp = sub.add_parser("export", help="Stream edges in simple formats")
+    p_exp.add_argument("gfa")
+    p_exp.add_argument("--format", default="edge-list", choices=["edge-list", "graphml", "gexf", "json"])
+    p_exp.add_argument("--bidirected", action="store_true")
+    p_exp.add_argument("--output", help="Output path", default="-")
 
     p_stats = sub.add_parser("stats", help="Print basic graph statistics")
     p_stats.add_argument("gfa", help="Input *.gfa* file or - for stdin")
@@ -76,6 +85,7 @@ def main(argv: list[str] | None = None) -> None:
             store_seq=args.store_seq,
             strip_orientation=args.strip_orientation,
             verbose=args.verbose,
+            bidirected=args.bidirected,
         )
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]
@@ -88,6 +98,45 @@ def main(argv: list[str] | None = None) -> None:
             save_matrix(A, Path(args.matrix), verbose=args.verbose)
         if build_g:
             globals().update({"G": G})
+    elif args.cmd == "export":
+        parser_format = args.format
+        out_path = Path(args.output) if args.output != "-" else None
+        if parser_format == "edge-list":
+            for rec in GFAParser(args.gfa):
+                if isinstance(rec, (Link, EdgeRecord, ContainmentRecord)):
+                    u = rec.from_segment
+                    v = rec.to_segment
+                    if args.bidirected:
+                        u = u + b":" + rec.orientation_from.encode()
+                        v = v + b":" + rec.orientation_to.encode()
+                    line = f"{u.decode()}\t{v.decode()}\n"
+                    if out_path:
+                        with open(out_path, "a") as fh:
+                            fh.write(line)
+                    else:
+                        sys.stdout.write(line)
+        else:
+            G = parse_gfa(
+                args.gfa,
+                build_graph=True,
+                build_matrix=False,
+                directed=True,
+                strip_orientation=False,
+                bidirected=args.bidirected,
+            )
+            if parser_format == "graphml":
+                nx.write_graphml(G, args.output)
+            elif parser_format == "gexf":
+                nx.write_gexf(G, args.output)
+            elif parser_format == "json":
+                import json
+
+                data = nx.readwrite.json_graph.node_link_data(G)
+                if args.output == "-":
+                    json.dump(data, sys.stdout)
+                else:
+                    with open(args.output, "w") as fh:
+                        json.dump(data, fh)
     elif args.cmd == "stats":
         stats = compute_stats(
             args.gfa, directed=args.directed, strip_orientation=args.strip_orientation

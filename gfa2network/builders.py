@@ -4,7 +4,13 @@ from pathlib import Path
 
 import networkx as nx
 
-from .parser import GFAParser, Segment, Link
+from .parser import (
+    GFAParser,
+    Segment,
+    Link,
+    EdgeRecord,
+    ContainmentRecord,
+)
 from .utils import available_memory, convert_format, save_matrix
 
 try:
@@ -26,6 +32,7 @@ def parse_gfa(
     store_seq: bool = False,
     strip_orientation: bool = False,
     verbose: bool = False,
+    bidirected: bool = False,
 ):
     """Stream-parse *path* and return requested artefacts."""
     if build_matrix and not _HAS_SCIPY:
@@ -33,7 +40,12 @@ def parse_gfa(
     if store_seq and not build_graph:
         store_seq = False
 
-    graph_cls = nx.DiGraph if directed else nx.Graph
+    if bidirected and not directed:
+        raise ValueError("--bidirected incompatible with --undirected")
+    if bidirected:
+        graph_cls = nx.MultiDiGraph
+    else:
+        graph_cls = nx.DiGraph if directed else nx.Graph
     G = graph_cls() if build_graph else None
 
     node2idx: dict[bytes, int] = {}
@@ -42,53 +54,68 @@ def parse_gfa(
     data: list[float] = []
     seq_bytes_total = 0
 
-    tag_prefix = (weight_tag + ":").encode() if weight_tag else None
-
     parser = GFAParser(path)
     for lineno, record in enumerate(parser, 1):
         if isinstance(record, Segment):
             seg = record.id
             if build_graph:
-                if store_seq and record.sequence is not None:
-                    G.add_node(seg, sequence=record.sequence)  # type: ignore[arg-type]
-                    seq_bytes_total += len(record.sequence)
+                if bidirected:
+                    for ori in ("+", "-"):
+                        node = seg + b":" + ori.encode()
+                        if store_seq and record.sequence is not None:
+                            G.add_node(node, sequence=record.sequence)
+                        else:
+                            G.add_node(node)
                 else:
-                    G.add_node(seg)  # type: ignore[arg-type]
-            if build_matrix and seg not in node2idx:
-                node2idx[seg] = len(node2idx)
-        elif isinstance(record, Link):
+                    if store_seq and record.sequence is not None:
+                        G.add_node(seg, sequence=record.sequence)
+                        seq_bytes_total += len(record.sequence)
+                    else:
+                        G.add_node(seg)
+            if build_matrix:
+                if bidirected:
+                    for ori in ("+", "-"):
+                        node = seg + b":" + ori.encode()
+                        if node not in node2idx:
+                            node2idx[node] = len(node2idx)
+                else:
+                    if seg not in node2idx:
+                        node2idx[seg] = len(node2idx)
+        elif isinstance(record, (Link, EdgeRecord, ContainmentRecord)):
             u = record.from_segment
             v = record.to_segment
             if strip_orientation:
                 u = u.rstrip(b"+-")
                 v = v.rstrip(b"+-")
             w: float | None = None
-            if tag_prefix and record.tags:
-                for f in record.tags:
-                    if f.startswith(tag_prefix):
-                        try:
-                            w = float(f.split(b":", 2)[-1])
-                        except ValueError:
-                            pass
-                        break
+            if weight_tag and record.tags and weight_tag in record.tags:
+                val = record.tags[weight_tag]
+                if isinstance(val, (int, float)):
+                    w = float(val)
+            if bidirected:
+                u_node = u + b":" + record.orientation_from.encode()
+                v_node = v + b":" + record.orientation_to.encode()
+            else:
+                u_node = u
+                v_node = v
             if build_matrix:
-                for n in (u, v):
+                for n in (u_node, v_node):
                     if n not in node2idx:
                         node2idx[n] = len(node2idx)
-                rows.append(node2idx[u])
-                cols.append(node2idx[v])
+                rows.append(node2idx[u_node])
+                cols.append(node2idx[v_node])
                 data.append(1.0 if w is None else w)
             if build_graph:
                 attrs = {}
-                if not strip_orientation:
+                if not strip_orientation and not bidirected:
                     attrs = {
                         "orientation_from": record.orientation_from,
                         "orientation_to": record.orientation_to,
                     }
                 if w is None:
-                    G.add_edge(u, v, **attrs)  # type: ignore[arg-type]
+                    G.add_edge(u_node, v_node, **attrs)
                 else:
-                    G.add_edge(u, v, weight=w, **attrs)  # type: ignore[arg-type]
+                    G.add_edge(u_node, v_node, weight=w, **attrs)
         if verbose and lineno % 500_000 == 0:
             print(f"\r[{lineno:,} lines]", end="", file=sys.stderr)
 

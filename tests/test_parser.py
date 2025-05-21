@@ -57,3 +57,20 @@ def test_stats_cli(tmp_path: Path):
         check=True,
     )
     assert "nodes" in result.stdout
+
+
+def test_tag_parsing(tmp_path: Path):
+    gfa = tmp_path / "t.gfa"
+    gfa.write_text("S\ts1\t4\tRC:i:5\nS\ts2\t4\t\nL\ts1\t+\ts2\t+\t0M\tRC:i:2\n")
+    parser = GFAParser(gfa)
+    recs = list(parser)
+    seg = recs[0]
+    assert seg.tags == {"RC": 5}
+    link = recs[-1]
+    assert link.tags == {"RC": 2}
+
+
+def test_bidirected(tmp_path: Path):
+    gfa = write_gfa(tmp_path)
+    G = parse_gfa(gfa, build_graph=True, build_matrix=False, bidirected=True)
+    assert (b"s1:+", b"s2:-") in G.edges
