@@ -59,6 +59,14 @@ Run the small test suite with:
 python -m pytest
 ```
 
+## Installation
+
+Install the package directly from GitHub using `pip`:
+
+```bash
+pip install git+https://github.com/sclipman/gfa2network.git
+```
+
 
 ## Quick start
 
@@ -125,11 +133,15 @@ from gfa2network import parse_gfa
 G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
 # Compressed input works as well
 Gz = parse_gfa("input.gfa.gz", build_graph=True, build_matrix=False)
+# Store sequences on nodes
+G_seq = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_seq=True)
 ```
 
-Pass `directed=False` for an undirected graph or specify a `weight_tag`
-to use numeric edge weights.  The module also exposes a helper
-`convert_format` to turn the returned COO matrix into CSR/CSC/DOK formats.
+Pass `store_seq=True` to attach the sequences from `S` records as the
+`sequence` attribute on each node.  You can also set `directed=False` for an
+undirected graph or specify a `weight_tag` to use numeric edge weights.  The
+module additionally exposes a helper `convert_format` to turn the returned COO
+matrix into CSR/CSC/DOK formats.
 
 ## Dependencies
 
