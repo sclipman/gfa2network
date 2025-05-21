@@ -47,6 +47,7 @@ Optional arguments
 --undirected         Treat the graph as undirected.
 --weight-tag TAG     Use numeric value of GFA tag *TAG* (e.g. *RC*) as edge
                      weight; otherwise every edge weight = 1.
+--store-seq          Keep nucleotide sequences from 'S' records on nodes.
 --verbose            Emit progress to *stderr* (every 500 k lines + tqdm bars).
 
 ---------------
@@ -104,6 +105,19 @@ def _parse_link(fields: list[bytes]) -> Tuple[bytes, bytes]:
 
     return u.rstrip(b"+-"), v.rstrip(b"+-")
 
+def _available_memory() -> int:
+    """Return approximate available RAM in bytes (Linux only)."""
+    try:
+        with open("/proc/meminfo", "r") as fh:
+            info = {line.split(":", 1)[0]: int(line.split()[1]) for line in fh}
+        if "MemAvailable" in info:
+            return info["MemAvailable"] * 1024
+        if "MemTotal" in info:
+            return info["MemTotal"] * 1024
+    except Exception:
+        pass
+    return 0
+
 # ─────────────────────────── core parser ─────────────────────────────────────
 def parse_gfa(
     path: str | pathlib.Path,
@@ -112,6 +126,7 @@ def parse_gfa(
     build_matrix: bool,
     directed: bool = True,
     weight_tag: str | None = None,
+    store_seq: bool = False,
     verbose: bool = False,
 ) -> nx.Graph | sp.coo_matrix | tuple[nx.Graph, sp.coo_matrix]:
     """
@@ -122,9 +137,17 @@ def parse_gfa(
     Graph only          → nx.Graph / nx.DiGraph
     Matrix only         → scipy.sparse.coo_matrix
     Both requested      → (Graph, coo_matrix)
+
+    When *store_seq* is ``True`` and ``build_graph`` is also True,
+    nucleotide sequences from ``S`` records are attached to nodes as the
+    ``sequence`` attribute.  The flag is ignored when ``build_matrix`` is
+    requested without ``build_graph``.
     """
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
+
+    if store_seq and not build_graph:
+        store_seq = False  # sequences only stored on graph nodes
 
     graph_cls = nx.DiGraph if directed else nx.Graph
     G = graph_cls() if build_graph else None
@@ -134,6 +157,7 @@ def parse_gfa(
     rows: list[int] = []
     cols: list[int] = []
     data: list[float] = []
+    seq_bytes_total = 0
 
     tag_prefix = (weight_tag + ":").encode() if weight_tag else None
 
@@ -147,7 +171,12 @@ def parse_gfa(
             if fields[0] == b"S":                        # segment
                 seg = fields[1]
                 if build_graph:
-                    G.add_node(seg)                      # type: ignore[arg-type]
+                    if store_seq and len(fields) > 2:
+                        seq = fields[2]
+                        G.add_node(seg, sequence=seq)    # type: ignore[arg-type]
+                        seq_bytes_total += len(seq)
+                    else:
+                        G.add_node(seg)                  # type: ignore[arg-type]
                 if build_matrix and seg not in node2idx:
                     node2idx[seg] = len(node2idx)
 
@@ -183,6 +212,14 @@ def parse_gfa(
 
     if verbose:
         print("\r[parse_gfa] done", file=sys.stderr)
+        if store_seq and build_graph:
+            avail = _available_memory()
+            if avail and seq_bytes_total > 0.5 * avail:
+                extra_gb = seq_bytes_total / 1e9
+                print(
+                    f"[warning] stored sequences use {extra_gb:.1f} GB (>50% of available memory)",
+                    file=sys.stderr,
+                )
 
     out_graph = G
     out_mat = None
@@ -304,6 +341,8 @@ def main(argv: Iterable[str] | None = None):
                    help="Sparse format for .npz (csr|csc|coo|dok)")
     p.add_argument("--weight-tag",
                    help="Optional GFA tag (e.g. RC) to use as edge weight")
+    p.add_argument("--store-seq", action="store_true",
+                   help="Attach sequences from S records to graph nodes")
     p.add_argument("--verbose", action="store_true")
 
     args = p.parse_args(argv)
@@ -320,6 +359,7 @@ def main(argv: Iterable[str] | None = None):
         build_matrix=build_mat,
         directed=args.directed,
         weight_tag=args.weight_tag,
+        store_seq=args.store_seq,
         verbose=args.verbose,
     )
 
