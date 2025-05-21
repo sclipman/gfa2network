@@ -91,7 +91,8 @@ class IGraphBuilder:
         self.graph.add_edge(idx_u, idx_v, **attrs)  # type: ignore[union-attr]
 
     # ------------------------------------------------------------------
-    def to_matrix(self):
+    def to_matrix(self) -> "sp.spmatrix":
+        """Return the adjacency matrix of the built graph."""
         if not _HAS_SCIPY:
             raise RuntimeError("Matrix output requires SciPy")
         return self.graph.get_adjacency_sparse(attribute="weight", default=1.0)  # type: ignore[union-attr]
@@ -110,8 +111,8 @@ def parse_gfa_igraph(
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
-):
-    """Parse *path* and return igraph.Graph and/or sparse matrix."""
+) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
+    """Parse *path* and return an igraph graph and/or a sparse matrix."""
     if not _HAS_IGRAPH:
         raise RuntimeError("python-igraph is not available")
     if build_matrix and not _HAS_SCIPY:
