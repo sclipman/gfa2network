@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.0
+
+- Expanded parser with edge (`E`), containment (`C`) and walk (`O`) records
+- Tags are parsed into dictionaries with proper value types
+- New `--bidirected` option and `export` subcommand
+- Documentation and README updated
+- Version bump
+
 ## v0.2.0
 
 - Refactored into modular package layout

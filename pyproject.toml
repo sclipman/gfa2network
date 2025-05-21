@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gfa2network"
-version = "0.2.0"
+version = "0.3.0"
 description = "Convert GFA pangenome graphs to NetworkX graphs or SciPy matrices"
 authors = [{name = "John Doe", email = "john.doe@example.com"}]
 readme = "README.md"

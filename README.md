@@ -24,6 +24,8 @@ processed on ordinary hardware.
 - Optional sequence storage on nodes
 - Adjacency matrices in CSR/CSC/COO/DOK formats
 - Helper utilities to convert or save matrices
+- Bidirected graph representation via `--bidirected`
+- Export edges to various formats with the `export` subcommand
 
 The repository ships with a real world test graph,
 [`DRB1-3123_unsorted.gfa`](tests/data/DRB1-3123_unsorted.gfa), containing about
@@ -59,6 +61,9 @@ cat input.gfa | gfa2network convert - --graph --strip-orientation
 
 # print basic statistics
 gfa2network stats input.gfa
+
+# export edge list
+gfa2network export input.gfa --format edge-list > edges.txt
 ```
 
 
@@ -68,6 +73,7 @@ See `gfa2network -h` for all command line options.
 | ------------------ | ------- |
 | `convert`          | Convert a GFA into graph and/or matrix |
 | `stats`            | Print basic statistics |
+| `export`           | Stream edges in various formats |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
@@ -76,6 +82,7 @@ See `gfa2network -h` for all command line options.
 | `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
 | `--store-seq`      | Keep sequences from `S` records on nodes |
 | `--strip-orientation` | Remove `+/-` from IDs (legacy) |
+| `--bidirected`     | Use bidirected node representation |
 | `--verbose`        | Emit progress information |
 
 `--store-seq` may drastically increase memory usage. The parser will warn when the
@@ -112,10 +119,11 @@ This requires Python 3.8+ and the packages:
 
 ## Implementation notes
 
-Only segment (`S`), link (`L`) and path (`P`) records are parsed. Orientation
-symbols `+`/`-` are preserved on links and paths. Use `--strip-orientation` to
-reproduce the legacy behaviour of removing them. Additional GFA tags can be
-used as edge weights with `--weight-tag TAG`.
+Segment (`S`), link (`L`), edge (`E`), containment (`C`) and path/walk (`P`/`O`)
+records are parsed. Orientation symbols `+`/`-` are preserved on links and
+paths. Use `--strip-orientation` to reproduce the legacy behaviour of removing
+them. Additional GFA tags are parsed into a dictionary and can be used as edge
+weights with `--weight-tag TAG`.
 
 ## Output
 
