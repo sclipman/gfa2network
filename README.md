@@ -1,8 +1,10 @@
 # GFA2Network
 
-`GFA2Network` converts large [GFA-1](https://github.com/GFA-spec/GFA-spec) or
+`GFA2Network` converts [GFA-1](https://github.com/GFA-spec/GFA-spec) or
 [GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) pangenome
-variation graphs into handy Python objects.
+variation graphs into handy Python objects.  It can stream even very large
+graphs and materialise them as a NetworkX graph and/or a SciPy sparse adjacency
+matrix.
 
 The command **gfa2network** can build
 
@@ -12,6 +14,33 @@ The command **gfa2network** can build
 It reads the input file in a single pass and keeps memory usage roughly
 proportional to the number of edges, so multi‑million node graphs can be
 processed on ordinary hardware.
+
+## Features
+
+- Handles GFA‑1 and GFA‑2 link syntax
+- Build directed or undirected graphs
+- Stream parsing keeps memory proportional to edge count
+- Optional edge weights from a tag (e.g. `RC`)
+- Optional sequence storage on nodes
+- Adjacency matrices in CSR/CSC/COO/DOK formats
+- Helper utilities to convert or save matrices
+
+The repository ships with a real world test graph,
+[`DRB1-3123_unsorted.gfa`](tests/data/DRB1-3123_unsorted.gfa), containing about
+9500 lines from the human *DRB1* region.  Use it to experiment with the CLI
+or run the unit tests:
+
+```bash
+gfa2network tests/data/DRB1-3123_unsorted.gfa \
+    --graph --matrix drb1.npz --verbose
+```
+
+Run the small test suite with:
+
+```bash
+pytest
+```
+
 
 ## Quick start
 
@@ -56,7 +85,8 @@ G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
 ```
 
 Pass `directed=False` for an undirected graph or specify a `weight_tag`
-to use numeric edge weights.
+to use numeric edge weights.  The module also exposes a helper
+`convert_format` to turn the returned COO matrix into CSR/CSC/DOK formats.
 
 ## Dependencies
 
@@ -72,6 +102,7 @@ This requires Python 3.8+ and the packages:
 - `networkx` and `numpy`
 - `scipy` (optional, only required for matrix output)
 - `tqdm` (optional, pretty progress bars)
+- `pytest` (optional, to run the tests)
 
 ## Implementation notes
 
@@ -83,7 +114,8 @@ weights with `--weight-tag TAG`.
 
 If `--graph` is provided, a NetworkX graph is exposed as `G` when running the
 script directly. With `--matrix PATH`, an adjacency matrix is written to the
-specified path (`.npz`, `.npy` or `.csv`).
+specified path (`.npz`, `.npy` or `.csv`).  Matrices are produced in COO format
+and can be converted to other sparse formats via the `convert_format` helper.
 
 ## License
 
