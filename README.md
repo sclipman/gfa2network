@@ -1,6 +1,6 @@
-# GFA2Network
+# GFA2Network: Memory-efficent GFA→Graph Converter
 
-**GFA2Network** is a small Python library that transforms
+**GFA2Network** is a small Python library that converts
 [GFA-1](https://github.com/GFA-spec/GFA-spec) and
 [GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) files into
 convenient in-memory representations.  GFA (Graphical Fragment Assembly) is a
