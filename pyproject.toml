@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gfa2network"
+version = "1.0"
+description = "Convert GFA pangenome graphs to NetworkX graphs or SciPy matrices"
+authors = [{name = "Steven J. Clipman", email = "steven.clipman@example.com"}]
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "networkx",
+    "scipy",
+    "numpy",
+]
+
+
+[project.optional-dependencies]
+tqdm = ["tqdm"]
+
+[project.scripts]
+gfa2network = "gfa2network.cli:main"
