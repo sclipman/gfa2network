@@ -77,7 +77,7 @@ pip install git+https://github.com/sclipman/gfa2network.git
 ```
 
 
-## Quick start
+## Quick Start
 
 The examples below illustrate typical use cases.  Replace `input.gfa` with your
 own data set.  Files may also be gzip-compressed (`input.gfa.gz`).
@@ -171,7 +171,7 @@ This project targets Python 3.8 or later and depends on the following packages:
 - `tqdm` (optional) for progress bars on long‑running operations
 - `pytest` (optional) for running the unit tests
 
-## Implementation notes
+## Implementation Notes
 
 The parser recognises segment (`S`), link (`L`), edge (`E`), containment (`C`)
 and path/walk (`P`/`O`) records of the GFA specification. Orientation symbols
