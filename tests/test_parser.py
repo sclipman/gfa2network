@@ -1,6 +1,7 @@
 from pathlib import Path
 import subprocess
 import sys
+import warnings
 
 from gfa2network import parse_gfa
 from gfa2network.parser import GFAParser, PathRecord
@@ -74,3 +75,19 @@ def test_bidirected(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, bidirected=True)
     assert (b"s1:+", b"s2:-") in G.edges
+
+
+def test_segment_length(tmp_path: Path):
+    gfa = tmp_path / "len.gfa"
+    gfa.write_text("S\ts1\t10\n")
+    recs = list(GFAParser(gfa))
+    assert recs[0].length == 10
+    assert recs[0].sequence is None
+
+
+def test_unknown_record_warning(tmp_path: Path):
+    gfa = tmp_path / "bad.gfa"
+    gfa.write_text("X\tfoo\nX\tbar\n")
+    with warnings.catch_warnings(record=True) as w:
+        list(GFAParser(gfa))
+    assert len(w) == 1
