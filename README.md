@@ -46,13 +46,19 @@ pytest
 
 ```bash
 # build both outputs (directed graph + CSR matrix)
-gfa2network input.gfa --graph --matrix adj.npz
+gfa2network convert input.gfa --graph --matrix adj.npz
 
 # matrix only (lowest RAM) using COO format
-gfa2network input.gfa --matrix adj.npz --matrix-format coo
+gfa2network convert input.gfa --matrix adj.npz --matrix-format coo
 
 # directed graph only with verbose progress
-gfa2network input.gfa --graph --verbose
+gfa2network convert input.gfa --graph --verbose
+
+# stream from stdin and strip orientations (legacy behaviour)
+cat input.gfa | gfa2network convert - --graph --strip-orientation
+
+# print basic statistics
+gfa2network stats input.gfa
 ```
 
 
@@ -60,6 +66,8 @@ See `gfa2network -h` for all command line options.
 
 | Option             | Purpose |
 | ------------------ | ------- |
+| `convert`          | Convert a GFA into graph and/or matrix |
+| `stats`            | Print basic statistics |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
@@ -67,6 +75,7 @@ See `gfa2network -h` for all command line options.
 | `--undirected`     | Treat graph as undirected |
 | `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
 | `--store-seq`      | Keep sequences from `S` records on nodes |
+| `--strip-orientation` | Remove `+/-` from IDs (legacy) |
 | `--verbose`        | Emit progress information |
 
 `--store-seq` may drastically increase memory usage. The parser will warn when the
@@ -93,22 +102,20 @@ to use numeric edge weights.  The module also exposes a helper
 Install dependencies with:
 
 ```bash
-pip install -r requirements.txt
-# or
-pip install .
+pip install -e .[tqdm]
 ```
 
 This requires Python 3.8+ and the packages:
-- `networkx` and `numpy`
-- `scipy` (optional, only required for matrix output)
+- `networkx` and `scipy`
 - `tqdm` (optional, pretty progress bars)
 - `pytest` (optional, to run the tests)
 
 ## Implementation notes
 
-Only segment (`S`) and link (`L`) records are used. Orientation symbols
-`+`/`-` are stripped from node IDs. Additional GFA tags can be used as edge
-weights with `--weight-tag TAG`.
+Only segment (`S`), link (`L`) and path (`P`) records are parsed. Orientation
+symbols `+`/`-` are preserved on links and paths. Use `--strip-orientation` to
+reproduce the legacy behaviour of removing them. Additional GFA tags can be
+used as edge weights with `--weight-tag TAG`.
 
 ## Output
 
