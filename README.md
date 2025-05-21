@@ -1,5 +1,5 @@
-<p align="center">
-  <img src="assets/logo.png" width="100px" alt="GFA2Network logo"/>
+<p>
+  <img src="assets/logo.png" width="250px" alt="GFA2Network logo" align="left" style="margin-right: 20px;"/>
 </p>
 
 # GFA2Network: Memory-efficent GFA→Graph Converter
