@@ -77,6 +77,26 @@ pip install git+https://github.com/sclipman/gfa2network.git
 ```
 
 
+## Dependencies
+
+Install the requirements with:
+
+```bash
+pip install -r requirements.txt
+```
+
+For optional progress bars, you can install the extra dependency with:
+
+```bash
+pip install -e ".[tqdm]"
+```
+
+This project targets Python 3.8 or later and depends on the following packages:
+- `networkx`, `numpy` and `scipy` for graph handling and sparse matrices
+- `tqdm` (optional) for progress bars on long‑running operations
+- `pytest` (optional) for running the unit tests
+- `python-igraph` (optional) for the igraph backend
+
 ## Quick Start
 
 The examples below illustrate typical use cases.  Replace `input.gfa` with your
@@ -151,25 +171,6 @@ Pass `store_seq=True` to attach the sequences from `S` records as the
 undirected graph or specify a `weight_tag` to use numeric edge weights.  The
 module additionally exposes a helper `convert_format` to turn the returned COO
 matrix into CSR/CSC/DOK formats.
-
-## Dependencies
-
-Install the requirements with:
-
-```bash
-pip install -r requirements.txt
-```
-
-For optional progress bars, you can install the extra dependency with:
-
-```bash
-pip install -e ".[tqdm]"
-```
-
-This project targets Python 3.8 or later and depends on the following packages:
-- `networkx`, `numpy` and `scipy` for graph handling and sparse matrices
-- `tqdm` (optional) for progress bars on long‑running operations
-- `pytest` (optional) for running the unit tests
 
 ## Implementation Notes
 
