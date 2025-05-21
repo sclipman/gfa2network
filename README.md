@@ -1,10 +1,14 @@
 # GFA2Network
 
-`GFA2Network` converts [GFA-1](https://github.com/GFA-spec/GFA-spec) or
-[GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) pangenome
-variation graphs into handy Python objects.  It can stream even very large
-graphs and materialise them as a NetworkX graph and/or a SciPy sparse adjacency
-matrix.
+**GFA2Network** is a small Python library that transforms
+[GFA-1](https://github.com/GFA-spec/GFA-spec) and
+[GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) files into
+convenient in-memory representations.  GFA (Graphical Fragment Assembly) is a
+common exchange format for pangenome graphs.  This package reads those graphs in
+a streaming fashion and exposes them either as a `networkx` graph object or as a
+SciPy sparse adjacency matrix.  Even multi-million node graphs can be handled on
+ordinary hardware because memory consumption grows roughly with the number of
+edges.
 
 The command **gfa2network** can build
 
@@ -22,10 +26,21 @@ processed on ordinary hardware.
 - Stream parsing keeps memory proportional to edge count
 - Optional edge weights from a tag (e.g. `RC`)
 - Optional sequence storage on nodes
-- Adjacency matrices in CSR/CSC/COO/DOK formats
+- Adjacency matrices in several sparse formats
 - Helper utilities to convert or save matrices
 - Bidirected graph representation via `--bidirected`
 - Export edges to various formats with the `export` subcommand
+
+The adjacency matrix can be written in several SciPy sparse representations:
+
+* **CSR (Compressed Sparse Row)** – efficient row slicing, used by default.
+* **CSC (Compressed Sparse Column)** – efficient column slicing.
+* **COO (Coordinate)** – straightforward triplet format, convenient for
+  incremental construction.
+* **DOK (Dictionary of Keys)** – a hash map representation useful for updates.
+
+These formats are explained in more detail in the
+[SciPy documentation](https://docs.scipy.org/doc/scipy/reference/sparse.html).
 
 The repository ships with a real world test graph,
 [`DRB1-3123_unsorted.gfa`](tests/data/DRB1-3123_unsorted.gfa), containing about
@@ -46,26 +61,29 @@ python -m pytest
 
 ## Quick start
 
+The examples below illustrate typical use cases.  Replace `input.gfa` with your
+own data set.
+
 ```bash
-# build both outputs (directed graph + CSR matrix)
+# Build both representations (directed NetworkX graph and CSR matrix)
 gfa2network convert input.gfa --graph --matrix adj.npz
 
-# matrix only (lowest RAM) using COO format
+# Matrix only (uses the least amount of memory) in the COO format
 gfa2network convert input.gfa --matrix adj.npz --matrix-format coo
 
-# directed graph only with verbose progress
+# Directed graph only with verbose progress output
 gfa2network convert input.gfa --graph --verbose
 
-# build an igraph graph and save it
+# Build an igraph representation and save it to disk
 gfa2network convert input.gfa --graph --backend igraph -o graph.pkl
 
-# stream from stdin and strip orientations (legacy behaviour)
+# Stream from standard input and strip orientation symbols (legacy behaviour)
 cat input.gfa | gfa2network convert - --graph --strip-orientation
 
-# print basic statistics
+# Compute basic graph statistics
 gfa2network stats input.gfa
 
-# export edge list
+# Export a simple edge list
 gfa2network export input.gfa --format edge-list > edges.txt
 ```
 
@@ -79,7 +97,7 @@ See `gfa2network -h` for all command line options.
 | `export`           | Stream edges in various formats |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
-| `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
+| `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
 | `-o PATH, --output PATH` | Save graph pickle to PATH |
 | `--backend`        | Backend for graph building (`networkx`\|`igraph`) |
 | `--directed`       | Treat graph as directed (default) |
@@ -96,12 +114,13 @@ stored sequences exceed half of the available RAM. The flag is ignored when only
 
 ## Using in Python
 
-Import `parse_gfa` to build graphs in your own code:
+Import the convenience function `parse_gfa` in your own Python scripts in order
+to generate graphs programmatically:
 
 ```python
 from gfa2network import parse_gfa
 
-# build a NetworkX graph
+# Build a NetworkX graph
 G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
 ```
 
@@ -123,27 +142,30 @@ For optional progress bars, you can install the extra dependency with:
 pip install -e ".[tqdm]"
 ```
 
-This requires Python 3.8+ and the packages:
-- `networkx`, `numpy` and `scipy`
-- `tqdm` (optional, pretty progress bars)
-- `pytest` (optional, to run the tests)
+This project targets Python 3.8 or later and depends on the following packages:
+- `networkx`, `numpy` and `scipy` for graph handling and sparse matrices
+- `tqdm` (optional) for progress bars on long‑running operations
+- `pytest` (optional) for running the unit tests
 
 ## Implementation notes
 
-Segment (`S`), link (`L`), edge (`E`), containment (`C`) and path/walk (`P`/`O`)
-records are parsed. Orientation symbols `+`/`-` are preserved on links and
-paths. Use `--strip-orientation` to reproduce the legacy behaviour of removing
-them. Additional GFA tags are parsed into a dictionary and can be used as edge
-weights with `--weight-tag TAG`.
+The parser recognises segment (`S`), link (`L`), edge (`E`), containment (`C`)
+and path/walk (`P`/`O`) records of the GFA specification. Orientation symbols
+`+` and `-` are retained by default so that the directionality of edges and paths
+is preserved.  The option `--strip-orientation` reproduces the historic
+behaviour of discarding these signs.  All additional GFA tags are collected into
+a dictionary, enabling the use of numeric tags as edge weights via the
+`--weight-tag` option.
 
 ## Output
 
-If `--graph` is provided, a NetworkX graph is exposed as `G` when running the
-script directly.  Use `-o PATH`/`--output PATH` to save the graph to disk
-(NetworkX `gpickle` or igraph pickle).  With `--matrix PATH`, an adjacency
-matrix is written to the specified path (`.npz`, `.npy` or `.csv`).  Matrices
-are produced in COO format and can be converted to other sparse formats via the
-`convert_format` helper.
+When invoked as a script, the resulting NetworkX graph is available as the
+variable `G`.  The `-o`/`--output` option stores this graph on disk (either as a
+NetworkX pickle or as an igraph pickle, depending on the backend).  If
+`--matrix` is specified, the adjacency matrix is saved to the given file
+(`.npz`, `.npy` or `.csv`).  Matrices are initially produced in the COO format
+and may subsequently be converted to another sparse representation using the
+`convert_format` helper function.
 
 ## License
 
