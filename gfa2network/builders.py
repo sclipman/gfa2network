@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import networkx as nx
+import sys
 
 from .parser import (
     GFAParser,

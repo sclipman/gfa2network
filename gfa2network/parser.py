@@ -79,6 +79,7 @@ class GFAParser:
         else:
             self.path = None
             self.file = source
+        self._warned_unknown = False
 
     def __iter__(self) -> Iterator[
         Segment | Link | EdgeRecord | ContainmentRecord | PathRecord | WalkRecord
@@ -98,20 +99,36 @@ class GFAParser:
                 if not line:
                     continue
                 if line[0] not in (ord("S"), ord("L"), ord("P"), ord("E"), ord("C"), ord("O")):
-                    if line[0] not in (ord("H"), ord("F")):
-                        warnings.warn(f"Skipping unsupported record: {line[:1].decode()}", RuntimeWarning, stacklevel=1)
+                    if line[0] not in (ord("H"), ord("F")) and not self._warned_unknown:
+                        warnings.warn(
+                            f"Skipping unsupported record: {line[:1].decode()}",
+                            RuntimeWarning,
+                            stacklevel=1,
+                        )
+                        self._warned_unknown = True
                     continue
                 fields = line.rstrip(b"\n").split(b"\t")
                 rec_type = fields[0]
                 if rec_type == b"S":
-                    seq = fields[2] if len(fields) > 2 else None
-                    length = None
-                    if seq is None and len(fields) > 2:
+                    seq: bytes | None = None
+                    length: int | None = None
+                    tag_start = 3
+                    if len(fields) > 2:
+                        third = fields[2]
                         try:
-                            length = int(fields[2])
+                            length = int(third)
+                            if len(fields) > 3:
+                                fourth = fields[3]
+                                # Heuristically detect if field 4 is a tag
+                                parts = fourth.split(b":", 2)
+                                if len(parts) == 3 and len(parts[0]) == 2 and len(parts[1]) == 1:
+                                    tag_start = 3
+                                else:
+                                    seq = fourth
+                                    tag_start = 4
                         except ValueError:
-                            pass
-                    tags = self._parse_tags(fields[3:]) if len(fields) > 3 else None
+                            seq = third
+                    tags = self._parse_tags(fields[tag_start:]) if len(fields) > tag_start else None
                     yield Segment(fields[1], length, seq, tags)
                 elif rec_type == b"L":
                     yield self._parse_link(fields)
