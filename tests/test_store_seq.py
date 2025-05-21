@@ -20,4 +20,3 @@ def test_store_seq_off(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, store_seq=False)
     assert "sequence" not in G.nodes[b"s1"]
-

@@ -1,0 +1,121 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import networkx as nx
+
+from .parser import GFAParser, Segment, Link
+from .utils import available_memory, convert_format, save_matrix
+
+try:
+    import scipy.sparse as sp
+
+    _HAS_SCIPY = True
+except Exception:
+    sp = None  # type: ignore
+    _HAS_SCIPY = False
+
+
+def parse_gfa(
+    path: str | Path,
+    *,
+    build_graph: bool,
+    build_matrix: bool,
+    directed: bool = True,
+    weight_tag: str | None = None,
+    store_seq: bool = False,
+    strip_orientation: bool = False,
+    verbose: bool = False,
+):
+    """Stream-parse *path* and return requested artefacts."""
+    if build_matrix and not _HAS_SCIPY:
+        raise RuntimeError("Matrix output requires SciPy")
+    if store_seq and not build_graph:
+        store_seq = False
+
+    graph_cls = nx.DiGraph if directed else nx.Graph
+    G = graph_cls() if build_graph else None
+
+    node2idx: dict[bytes, int] = {}
+    rows: list[int] = []
+    cols: list[int] = []
+    data: list[float] = []
+    seq_bytes_total = 0
+
+    tag_prefix = (weight_tag + ":").encode() if weight_tag else None
+
+    parser = GFAParser(path)
+    for lineno, record in enumerate(parser, 1):
+        if isinstance(record, Segment):
+            seg = record.id
+            if build_graph:
+                if store_seq and record.sequence is not None:
+                    G.add_node(seg, sequence=record.sequence)  # type: ignore[arg-type]
+                    seq_bytes_total += len(record.sequence)
+                else:
+                    G.add_node(seg)  # type: ignore[arg-type]
+            if build_matrix and seg not in node2idx:
+                node2idx[seg] = len(node2idx)
+        elif isinstance(record, Link):
+            u = record.from_segment
+            v = record.to_segment
+            if strip_orientation:
+                u = u.rstrip(b"+-")
+                v = v.rstrip(b"+-")
+            w: float | None = None
+            if tag_prefix and record.tags:
+                for f in record.tags:
+                    if f.startswith(tag_prefix):
+                        try:
+                            w = float(f.split(b":", 2)[-1])
+                        except ValueError:
+                            pass
+                        break
+            if build_matrix:
+                for n in (u, v):
+                    if n not in node2idx:
+                        node2idx[n] = len(node2idx)
+                rows.append(node2idx[u])
+                cols.append(node2idx[v])
+                data.append(1.0 if w is None else w)
+            if build_graph:
+                attrs = {}
+                if not strip_orientation:
+                    attrs = {
+                        "orientation_from": record.orientation_from,
+                        "orientation_to": record.orientation_to,
+                    }
+                if w is None:
+                    G.add_edge(u, v, **attrs)  # type: ignore[arg-type]
+                else:
+                    G.add_edge(u, v, weight=w, **attrs)  # type: ignore[arg-type]
+        if verbose and lineno % 500_000 == 0:
+            print(f"\r[{lineno:,} lines]", end="", file=sys.stderr)
+
+    if verbose:
+        print("\r[parse_gfa] done")
+        if store_seq and build_graph:
+            avail = available_memory()
+            if avail and seq_bytes_total > 0.5 * avail:
+                extra_gb = seq_bytes_total / 1e9
+                print(
+                    f"[warning] stored sequences use {extra_gb:.1f} GB (>50% of available memory)",
+                )
+
+    out_graph = G
+    out_mat = None
+    if build_matrix:
+        n = len(node2idx)
+        out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=float)
+        if build_graph and G is None:
+            out_graph = nx.from_scipy_sparse_array(
+                out_mat, create_using=graph_cls, edge_attribute="weight"
+            )
+            mapping = {i: seg for seg, i in node2idx.items()}
+            out_graph = nx.relabel_nodes(out_graph, mapping, copy=False)
+
+    if build_graph and build_matrix:
+        return out_graph, out_mat
+    if build_graph:
+        return out_graph
+    return out_mat
