@@ -30,7 +30,15 @@ See `python GFA2Network.py -h` for all command line options.
 
 ## Dependencies
 
-- Python 3.8+
+Install dependencies with:
+
+```bash
+pip install -r requirements.txt
+# or
+pip install .
+```
+
+This requires Python 3.8+ and the packages:
 - `networkx` and `numpy`
 - `scipy` (optional, only required for matrix output)
 - `tqdm` (optional, pretty progress bars)
