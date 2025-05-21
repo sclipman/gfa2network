@@ -1,4 +1,4 @@
-# GFA2NetworkX
+# GFA2Network
 
 `GFA2NetworkX` converts large [GFA-1](https://github.com/GFA-spec/GFA-spec) or
 [GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) pangenome
