@@ -135,12 +135,6 @@ def parse_gfa(
     if build_matrix:
         n = len(node2idx)
         out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=float)
-        if build_graph and G is None:
-            out_graph = nx.from_scipy_sparse_array(
-                out_mat, create_using=graph_cls, edge_attribute="weight"
-            )
-            mapping = {i: seg for seg, i in node2idx.items()}
-            out_graph = nx.relabel_nodes(out_graph, mapping, copy=False)
 
     if build_graph and build_matrix:
         return out_graph, out_mat

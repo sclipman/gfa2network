@@ -40,7 +40,7 @@ gfa2network tests/data/DRB1-3123_unsorted.gfa \
 Run the small test suite with:
 
 ```bash
-pytest
+python -m pytest
 ```
 
 
@@ -106,14 +106,20 @@ to use numeric edge weights.  The module also exposes a helper
 
 ## Dependencies
 
-Install dependencies with:
+Install the requirements with:
 
 ```bash
-pip install -e .[tqdm]
+pip install -r requirements.txt
+```
+
+For optional progress bars, you can install the extra dependency with:
+
+```bash
+pip install -e ".[tqdm]"
 ```
 
 This requires Python 3.8+ and the packages:
-- `networkx` and `scipy`
+- `networkx`, `numpy` and `scipy`
 - `tqdm` (optional, pretty progress bars)
 - `pytest` (optional, to run the tests)
 
