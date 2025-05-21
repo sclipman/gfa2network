@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" width="100px" alt="GFA2Network logo"/>
+</p>
+
 # GFA2Network: Memory-efficent GFA→Graph Converter
 
 **GFA2Network** is a small Python library that converts
