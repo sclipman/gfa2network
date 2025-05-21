@@ -1,10 +1,10 @@
 <p>
   <img
     src="assets/logo.png"
-    width="100px"
+    width="125px"
     alt="GFA2Network logo"
     align="left"
-    style="margin-right:20px;"/>
+    style="margin-right:10px;"/>
 </p>
 
 # GFA2Network: Memory-efficent GFA→Graph Converter
