@@ -1,6 +1,6 @@
 # GFA2Network
 
-`GFA2NetworkX` converts large [GFA-1](https://github.com/GFA-spec/GFA-spec) or
+`GFA2Network` converts large [GFA-1](https://github.com/GFA-spec/GFA-spec) or
 [GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) pangenome
 variation graphs into handy Python objects.
 
@@ -26,7 +26,22 @@ gfa2network input.gfa --matrix adj.npz --matrix-format coo
 gfa2network input.gfa --graph --verbose
 ```
 
+
 See `gfa2network -h` for all command line options.
+
+## Using in Python
+
+Import `parse_gfa` to build graphs in your own code:
+
+```python
+from gfa2network import parse_gfa
+
+# build a NetworkX graph
+G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
+```
+
+Pass `directed=False` for an undirected graph or specify a `weight_tag`
+to use numeric edge weights.
 
 ## Dependencies
 
