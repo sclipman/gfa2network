@@ -29,6 +29,21 @@ gfa2network input.gfa --graph --verbose
 
 See `gfa2network -h` for all command line options.
 
+| Option             | Purpose |
+| ------------------ | ------- |
+| `--graph`          | Build a NetworkX object |
+| `--matrix PATH`    | Write adjacency matrix to PATH |
+| `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
+| `--directed`       | Treat graph as directed (default) |
+| `--undirected`     | Treat graph as undirected |
+| `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
+| `--store-seq`      | Keep sequences from `S` records on nodes |
+| `--verbose`        | Emit progress information |
+
+`--store-seq` may drastically increase memory usage. The parser will warn when the
+stored sequences exceed half of the available RAM. The flag is ignored when only
+`--matrix` is requested.
+
 ## Using in Python
 
 Import `parse_gfa` to build graphs in your own code:
