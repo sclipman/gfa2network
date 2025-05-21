@@ -30,6 +30,7 @@ processed on ordinary hardware.
 - Helper utilities to convert or save matrices
 - Bidirected graph representation via `--bidirected`
 - Export edges to various formats with the `export` subcommand
+- Transparent support for gzip-compressed input files (`*.gfa.gz`)
 
 The adjacency matrix can be written in several SciPy sparse representations:
 
@@ -62,7 +63,7 @@ python -m pytest
 ## Quick start
 
 The examples below illustrate typical use cases.  Replace `input.gfa` with your
-own data set.
+own data set.  Files may also be gzip-compressed (`input.gfa.gz`).
 
 ```bash
 # Build both representations (directed NetworkX graph and CSR matrix)
@@ -122,6 +123,8 @@ from gfa2network import parse_gfa
 
 # Build a NetworkX graph
 G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
+# Compressed input works as well
+Gz = parse_gfa("input.gfa.gz", build_graph=True, build_matrix=False)
 ```
 
 Pass `directed=False` for an undirected graph or specify a `weight_tag`
