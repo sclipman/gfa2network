@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0
+
+- Reset repository state and declared version 1.0.
+
 ## Phase 2
 
 - Added igraph backend (--backend igraph) via IGraphBuilder—requires python-igraph.
