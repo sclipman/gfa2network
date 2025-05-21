@@ -6,6 +6,7 @@ import sys
 
 import networkx as nx
 from .builders import parse_gfa
+from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
 from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
 from .utils import convert_format, save_matrix
 from .analysis import compute_stats
@@ -21,6 +22,12 @@ def main(argv: list[str] | None = None) -> None:
 
     p_conv = sub.add_parser("convert", help="Convert GFA to graph or matrix")
     p_conv.add_argument("gfa", help="Input *.gfa* file or - for stdin")
+    p_conv.add_argument(
+        "--backend",
+        choices=["networkx", "igraph"],
+        default="networkx",
+        help="Graph backend to use",
+    )
     g = p_conv.add_mutually_exclusive_group()
     g.add_argument(
         "--directed",
@@ -76,17 +83,36 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("convert requires --graph or --matrix")
         build_mat = bool(args.matrix)
         build_g = args.graph
-        result = parse_gfa(
-            args.gfa,
-            build_graph=build_g,
-            build_matrix=build_mat,
-            directed=args.directed,
-            weight_tag=args.weight_tag,
-            store_seq=args.store_seq,
-            strip_orientation=args.strip_orientation,
-            verbose=args.verbose,
-            bidirected=args.bidirected,
-        )
+        if args.backend == "igraph":
+            if not _HAS_IGRAPH:
+                print(
+                    "Error: python-igraph is required for --backend igraph. Please install with `pip install python-igraph`.",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+            result = parse_gfa_igraph(
+                args.gfa,
+                build_graph=build_g,
+                build_matrix=build_mat,
+                directed=args.directed,
+                weight_tag=args.weight_tag,
+                store_seq=args.store_seq,
+                strip_orientation=args.strip_orientation,
+                verbose=args.verbose,
+                bidirected=args.bidirected,
+            )
+        else:
+            result = parse_gfa(
+                args.gfa,
+                build_graph=build_g,
+                build_matrix=build_mat,
+                directed=args.directed,
+                weight_tag=args.weight_tag,
+                store_seq=args.store_seq,
+                strip_orientation=args.strip_orientation,
+                verbose=args.verbose,
+                bidirected=args.bidirected,
+            )
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]
         elif build_g:

@@ -1,5 +1,9 @@
 # Changelog
 
+## Phase 2
+
+- Added igraph backend (--backend igraph) via IGraphBuilder—requires python-igraph.
+
 ## v0.3.0
 
 - Expanded parser with edge (`E`), containment (`C`) and walk (`O`) records

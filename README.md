@@ -56,6 +56,9 @@ gfa2network convert input.gfa --matrix adj.npz --matrix-format coo
 # directed graph only with verbose progress
 gfa2network convert input.gfa --graph --verbose
 
+# build an igraph graph
+gfa2network convert input.gfa --backend igraph -o graph.pkl
+
 # stream from stdin and strip orientations (legacy behaviour)
 cat input.gfa | gfa2network convert - --graph --strip-orientation
 
@@ -77,6 +80,7 @@ See `gfa2network -h` for all command line options.
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz` (csr\|csc\|coo\|dok) |
+| `--backend`        | Backend for graph building (`networkx`\|`igraph`) |
 | `--directed`       | Treat graph as directed (default) |
 | `--undirected`     | Treat graph as undirected |
 | `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
