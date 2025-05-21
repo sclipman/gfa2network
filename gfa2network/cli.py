@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-GFA2Network.py
-============================
+Command line interface for **gfa2network**.
+==========================================
 Load a (potentially huge) pangenome variation graph in **GFA-1** or **GFA-2**
 format and convert it into
 
@@ -16,19 +16,19 @@ Quick usage
 ------------
 Build *both* outputs (default: directed graph, CSR matrix):
 
-    python GFA2Network.py input.gfa \
+    gfa2network input.gfa \
         --graph \
         --matrix adj.npz
 
 Matrix-only run (lowest RAM):
 
-    python GFA2Network.py input.gfa \
+    gfa2network input.gfa \
         --matrix adj.npz \
         --matrix-format coo
 
 Directed graph only, verbose progress:
 
-    python GFA2Network.py input.gfa \
+    gfa2network input.gfa \
         --graph --verbose
 
 -------------

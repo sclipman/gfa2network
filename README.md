@@ -4,7 +4,7 @@
 [GFA-2](https://github.com/GFA-spec/GFA-spec/blob/master/GFA2.md) pangenome
 variation graphs into handy Python objects.
 
-The script **GFA2Network.py** can build
+The command **gfa2network** can build
 
 - a `networkx.Graph` / `DiGraph`, and/or
 - a SciPy sparse adjacency matrix.
@@ -17,16 +17,16 @@ processed on ordinary hardware.
 
 ```bash
 # build both outputs (directed graph + CSR matrix)
-python GFA2Network.py input.gfa --graph --matrix adj.npz
+gfa2network input.gfa --graph --matrix adj.npz
 
 # matrix only (lowest RAM) using COO format
-python GFA2Network.py input.gfa --matrix adj.npz --matrix-format coo
+gfa2network input.gfa --matrix adj.npz --matrix-format coo
 
 # directed graph only with verbose progress
-python GFA2Network.py input.gfa --graph --verbose
+gfa2network input.gfa --graph --verbose
 ```
 
-See `python GFA2Network.py -h` for all command line options.
+See `gfa2network -h` for all command line options.
 
 ## Dependencies
 
