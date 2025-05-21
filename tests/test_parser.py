@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 import sys
 import warnings
+import gzip
 
 from gfa2network import parse_gfa
 from gfa2network.parser import GFAParser, PathRecord
@@ -91,3 +92,12 @@ def test_unknown_record_warning(tmp_path: Path):
     with warnings.catch_warnings(record=True) as w:
         list(GFAParser(gfa))
     assert len(w) == 1
+
+
+def test_gzip_input(tmp_path: Path):
+    gz = tmp_path / "test.gfa.gz"
+    gz.write_bytes(gzip.compress(SAMPLE_GFA))
+    recs = list(GFAParser(gz))
+    assert len([r for r in recs if isinstance(r, PathRecord)]) == 1
+    G = parse_gfa(gz, build_graph=True, build_matrix=False)
+    assert G.number_of_nodes() == 2

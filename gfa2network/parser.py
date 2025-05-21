@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, BinaryIO, Iterator, Iterable, Tuple
 import sys
 import warnings
+import gzip
 
 
 @dataclass
@@ -92,7 +93,10 @@ class GFAParser:
             if path == "-":
                 fh = sys.stdin.buffer
             else:
-                fh = open(path, "rb", buffering=1 << 20)
+                if str(path).endswith(".gz"):
+                    fh = gzip.open(path, "rb")
+                else:
+                    fh = open(path, "rb", buffering=1 << 20)
             close = path != "-"
         try:
             for line in fh:
