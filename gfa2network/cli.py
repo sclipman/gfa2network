@@ -62,6 +62,12 @@ def main(argv: list[str] | None = None) -> None:
     )
     p_conv.add_argument("--bidirected", action="store_true", help="Use bidirected representation")
     p_conv.add_argument("--verbose", action="store_true")
+    p_conv.add_argument(
+        "-o",
+        "--output",
+        metavar="PATH",
+        help="Write graph pickle to PATH",
+    )
 
     p_exp = sub.add_parser("export", help="Stream edges in simple formats")
     p_exp.add_argument("gfa")
@@ -124,6 +130,17 @@ def main(argv: list[str] | None = None) -> None:
             save_matrix(A, Path(args.matrix), verbose=args.verbose)
         if build_g:
             globals().update({"G": G})
+            if args.output:
+                if args.backend == "networkx":
+                    if hasattr(nx, "write_gpickle"):
+                        nx.write_gpickle(G, args.output)
+                    else:  # pragma: no cover - legacy NetworkX
+                        import pickle
+
+                        with open(args.output, "wb") as fh:
+                            pickle.dump(G, fh)
+                else:
+                    G.write_pickle(args.output)
     elif args.cmd == "export":
         parser_format = args.format
         out_path = Path(args.output) if args.output != "-" else None
