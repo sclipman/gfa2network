@@ -1,7 +1,7 @@
 <p>
   <img
     src="assets/logo.png"
-    width="250px"
+    width="150px"
     alt="GFA2Network logo"
     align="left"
     style="margin-right:20px;"/>
@@ -19,7 +19,7 @@ SciPy sparse adjacency matrix.  Even multi-million node graphs can be handled on
 ordinary hardware because memory consumption grows roughly with the number of
 edges.
 
-The command **gfa2network** can build
+The command **gfa2network** can build:
 
 - a `networkx.Graph` / `DiGraph`, and/or
 - a SciPy sparse adjacency matrix.
