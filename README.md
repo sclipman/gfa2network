@@ -42,6 +42,7 @@ processed on ordinary hardware.
 - `distance` subcommand to query sequences or paths
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
+- Shortest path distances between sequences or whole genomes
 
 The adjacency matrix can be written in several SciPy sparse representations:
 
@@ -128,8 +129,10 @@ gfa2network export input.gfa --format edge-list > edges.txt
 
 # Shortest path between two sequences
 gfa2network distance input.gfa --seq ACGT TTTT
-# Minimal distance between two paths
-gfa2network distance input.gfa --path p1 p2
+
+# Distance between two paths
+gfa2network distance input.gfa --path sample1 sample2
+
 ```
 
 
@@ -186,6 +189,12 @@ dist = sequence_distance(G_seq, "ACGT", "TTTT")
 paths = load_paths("input.gfa")
 dist2 = genome_distance(G, paths[b"p1"], paths[b"p2"])
 ```
+
+`sequence_distance` locates nodes by their stored sequence strings and returns
+the shortest path length between them.  `genome_distance` accepts two node
+sets and calculates either the minimal or mean distance (``method="min"`` or
+``"mean"``).  The helper ``load_paths`` reads ``P`` or ``O`` records from a GFA
+file and maps path names to node lists for convenient lookup.
 
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an

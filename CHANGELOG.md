@@ -1,11 +1,11 @@
 # Changelog
 
 ## v0.5.0
+- Added sequence_distance and genome_distance helpers.
+- Introduced distance CLI subcommand and load_paths utility for querying sequences or paths.
+- Expanded README with Python API details and examples.
+- Added unit tests covering the new functionality.
 
-- Added `sequence_distance` and `genome_distance` helpers
-- New `distance` CLI subcommand for querying sequences or paths
-- `load_paths` utility to read path definitions
-- Expanded README with Python API details and examples
 
 ## v0.4.0
 
