@@ -9,7 +9,7 @@ from .builders import parse_gfa
 from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
 from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
 from .utils import convert_format, save_matrix
-from .analysis import compute_stats
+from .analysis import compute_stats, sequence_distance, genome_distance, load_paths
 from .version import __version__
 
 
@@ -81,6 +81,15 @@ def main(argv: list[str] | None = None) -> None:
     g2.add_argument("--directed", dest="directed", action="store_true", default=True)
     g2.add_argument("--undirected", dest="directed", action="store_false")
     p_stats.add_argument("--strip-orientation", action="store_true")
+
+    p_dist = sub.add_parser("distance", help="Compute distances")
+    p_dist.add_argument("gfa", help="Input *.gfa* file")
+    g3 = p_dist.add_mutually_exclusive_group(required=True)
+    g3.add_argument("--seq", nargs=2, metavar=("SEQ_A", "SEQ_B"))
+    g3.add_argument("--path", nargs=2, metavar=("PATH_A", "PATH_B"))
+    g4 = p_dist.add_mutually_exclusive_group()
+    g4.add_argument("--directed", dest="directed", action="store_true", default=True)
+    g4.add_argument("--undirected", dest="directed", action="store_false")
 
     args = parser.parse_args(argv)
 
@@ -180,6 +189,28 @@ def main(argv: list[str] | None = None) -> None:
                 else:
                     with open(args.output, "w") as fh:
                         json.dump(data, fh)
+    elif args.cmd == "distance":
+        if args.seq:
+            seq_a, seq_b = args.seq
+            G = parse_gfa(
+                args.gfa,
+                build_graph=True,
+                build_matrix=False,
+                directed=args.directed,
+                store_seq=True,
+            )
+            dist = sequence_distance(G, seq_a, seq_b)
+        else:
+            paths = load_paths(args.gfa)
+            name_a, name_b = args.path
+            try:
+                nodes_a = paths[name_a.encode()]
+                nodes_b = paths[name_b.encode()]
+            except KeyError as exc:
+                raise SystemExit(f"unknown path: {exc.args[0].decode()}") from exc
+            G = parse_gfa(args.gfa, build_graph=True, build_matrix=False, directed=args.directed)
+            dist = genome_distance(G, nodes_a, nodes_b)
+        print(dist)
     elif args.cmd == "stats":
         stats = compute_stats(
             args.gfa, directed=args.directed, strip_orientation=args.strip_orientation
