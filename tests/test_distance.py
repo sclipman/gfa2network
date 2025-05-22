@@ -3,7 +3,12 @@ import subprocess
 import sys
 
 from gfa2network import parse_gfa
-from gfa2network.analysis import sequence_distance, genome_distance, load_paths
+from gfa2network.analysis import (
+    sequence_distance,
+    genome_distance,
+    genome_distance_matrix,
+    load_paths,
+)
 
 SAMPLE_SEQ_GFA = b"""S\ts1\tACGT\nS\ts2\tTTTT\nL\ts1\t+\ts2\t+\t0M\n"""
 
@@ -26,6 +31,16 @@ def test_genome_distance(tmp_path: Path):
     G = parse_gfa(gfa, build_graph=True, build_matrix=False)
     d = genome_distance(G, paths[b"p1"], paths[b"p2"], method="min")
     assert d == 0
+
+
+def test_genome_distance_matrix(tmp_path: Path):
+    gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "matrix.gfa")
+    M = genome_distance_matrix(str(gfa))
+    import numpy as np
+
+    arr = M.values if hasattr(M, "values") else M
+    assert arr.shape == (2, 2)
+    assert np.allclose(arr, [[0, 0], [0, 0]])
 
 def test_cli_distance_seq(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_SEQ_GFA, "cli_seq.gfa")
@@ -64,3 +79,25 @@ def test_cli_distance_path(tmp_path: Path):
         check=True,
     )
     assert result.stdout.strip() == "0"
+
+
+def test_cli_distance_matrix(tmp_path: Path):
+    gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "cli_matrix.gfa")
+    out = tmp_path / "dist.csv"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gfa2network",
+            "distance-matrix",
+            str(gfa),
+            "-o",
+            str(out),
+        ],
+        check=True,
+    )
+    import numpy as np
+
+    arr = np.loadtxt(out, delimiter=",")
+    assert arr.shape == (2, 2)
+    assert np.allclose(arr, [[0, 0], [0, 0]])

@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.0
+- Added optional pandas support in `analysis` for DataFrame results
+- Introduced `genome_distance_matrix` helper
+- Added `distance-matrix` CLI subcommand
+- Updated README and tests
+
 ## v0.5.0
 - Added sequence_distance and genome_distance helpers.
 - Introduced distance CLI subcommand and load_paths utility for querying sequences or paths.

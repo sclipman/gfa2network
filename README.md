@@ -40,6 +40,7 @@ processed on ordinary hardware.
 - Bidirected graph representation via `--bidirected`
 - Compute shortest path distances between sequences or genomes
 - `distance` subcommand to query sequences or paths
+- `distance-matrix` subcommand to compute pairwise path distances
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
 - Shortest path distances between sequences or whole genomes
@@ -133,6 +134,9 @@ gfa2network distance input.gfa --seq ACGT TTTT
 # Distance between two paths
 gfa2network distance input.gfa --path sample1 sample2
 
+# Pairwise distances between all paths
+gfa2network distance-matrix input.gfa -o distances.csv
+
 ```
 
 
@@ -144,6 +148,7 @@ See `gfa2network -h` for all command line options.
 | `stats`            | Print basic statistics |
 | `export`           | Stream edges in various formats |
 | `distance`         | Compute distances between sequences or paths |
+| `distance-matrix`  | Compute pairwise path distances |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
@@ -188,13 +193,17 @@ dist = sequence_distance(G_seq, "ACGT", "TTTT")
 # Load path definitions and compare two genomes
 paths = load_paths("input.gfa")
 dist2 = genome_distance(G, paths[b"p1"], paths[b"p2"])
+
+# Pairwise distances between all paths
+mat = genome_distance_matrix("input.gfa")
 ```
 
 `sequence_distance` locates nodes by their stored sequence strings and returns
 the shortest path length between them.  `genome_distance` accepts two node
 sets and calculates either the minimal or mean distance (``method="min"`` or
 ``"mean"``).  The helper ``load_paths`` reads ``P`` or ``O`` records from a GFA
-file and maps path names to node lists for convenient lookup.
+file and maps path names to node lists for convenient lookup. ``genome_distance_matrix``
+computes all pairwise distances between paths and returns a matrix or dataframe.
 
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an
