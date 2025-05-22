@@ -2,6 +2,13 @@ from __future__ import annotations
 
 import networkx as nx
 
+try:
+    import pandas as pd  # type: ignore
+    _HAS_PANDAS = True
+except Exception:  # pragma: no cover - optional dependency
+    pd = None  # type: ignore
+    _HAS_PANDAS = False
+
 from .builders import parse_gfa
 from .parser import GFAParser, PathRecord, WalkRecord
 
@@ -116,3 +123,54 @@ def load_paths(path: str) -> dict[bytes, list[bytes]]:
         if isinstance(rec, (PathRecord, WalkRecord)):
             paths[rec.name] = [seg for seg, _ in rec.segments]
     return paths
+
+
+def genome_distance_matrix(gfa_path: str, method: str = "min"):
+    """Return pairwise distances between all paths in *gfa_path*.
+
+    The function loads path definitions, builds the graph and computes
+    distances between every pair of paths using :func:`genome_distance`.
+
+    Parameters
+    ----------
+    gfa_path : str
+        Path to the input GFA file.
+    method : str, optional
+        Distance aggregation method (``"min"`` or ``"mean"``), by default
+        ``"min"``.
+
+    Returns
+    -------
+    numpy.ndarray | pandas.DataFrame
+        Matrix of pairwise distances.  A ``pandas.DataFrame`` is returned
+        when pandas is installed, otherwise a ``numpy.ndarray``.
+    """
+
+    paths = load_paths(gfa_path)
+    names = list(paths)
+
+    G = parse_gfa(gfa_path, build_graph=True, build_matrix=False)
+
+    import numpy as np
+
+    n = len(names)
+    M = np.zeros((n, n), dtype=float)
+
+    for i, name_a in enumerate(names):
+        nodes_a = paths[name_a]
+        for j in range(i, n):
+            if i == j:
+                dist = 0.0
+            else:
+                try:
+                    dist = genome_distance(G, nodes_a, paths[names[j]], method=method)
+                except nx.NetworkXNoPath:
+                    dist = float("inf")
+            M[i, j] = dist
+            M[j, i] = dist
+
+    if _HAS_PANDAS:
+        labels = [n.decode() if isinstance(n, bytes) else str(n) for n in names]
+        return pd.DataFrame(M, index=labels, columns=labels)
+
+    return M

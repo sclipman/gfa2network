@@ -9,7 +9,13 @@ from .builders import parse_gfa
 from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
 from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
 from .utils import convert_format, save_matrix
-from .analysis import compute_stats, sequence_distance, genome_distance, load_paths
+from .analysis import (
+    compute_stats,
+    sequence_distance,
+    genome_distance,
+    genome_distance_matrix,
+    load_paths,
+)
 from .version import __version__
 
 
@@ -90,6 +96,11 @@ def main(argv: list[str] | None = None) -> None:
     g4 = p_dist.add_mutually_exclusive_group()
     g4.add_argument("--directed", dest="directed", action="store_true", default=True)
     g4.add_argument("--undirected", dest="directed", action="store_false")
+
+    p_dm = sub.add_parser("distance-matrix", help="Pairwise distances between paths")
+    p_dm.add_argument("gfa", help="Input *.gfa* file")
+    p_dm.add_argument("-o", "--output", required=True, help="Write matrix to PATH (.csv|.npy|.npz)")
+    p_dm.add_argument("--method", choices=["min", "mean"], default="min")
 
     args = parser.parse_args(argv)
 
@@ -211,6 +222,9 @@ def main(argv: list[str] | None = None) -> None:
             G = parse_gfa(args.gfa, build_graph=True, build_matrix=False, directed=args.directed)
             dist = genome_distance(G, nodes_a, nodes_b)
         print(dist)
+    elif args.cmd == "distance-matrix":
+        M = genome_distance_matrix(args.gfa, method=args.method)
+        save_matrix(M, Path(args.output))
     elif args.cmd == "stats":
         stats = compute_stats(
             args.gfa, directed=args.directed, strip_orientation=args.strip_orientation
