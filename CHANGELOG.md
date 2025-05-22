@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.5.0
+
+- Added `sequence_distance` and `genome_distance` helpers
+- New `distance` CLI subcommand for querying sequences or paths
+- `load_paths` utility to read path definitions
+- Expanded README with Python API details and examples
+
 ## v0.4.0
 
 - Added igraph backend (--backend igraph) via IGraphBuilder—requires python-igraph.

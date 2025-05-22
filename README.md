@@ -38,6 +38,8 @@ processed on ordinary hardware.
 - Adjacency matrices in several sparse formats
 - Helper utilities to convert or save matrices
 - Bidirected graph representation via `--bidirected`
+- Compute shortest path distances between sequences or genomes
+- `distance` subcommand to query sequences or paths
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
 
@@ -123,6 +125,11 @@ gfa2network stats input.gfa
 
 # Export a simple edge list
 gfa2network export input.gfa --format edge-list > edges.txt
+
+# Shortest path between two sequences
+gfa2network distance input.gfa --seq ACGT TTTT
+# Minimal distance between two paths
+gfa2network distance input.gfa --path p1 p2
 ```
 
 
@@ -133,6 +140,7 @@ See `gfa2network -h` for all command line options.
 | `convert`          | Convert a GFA into graph and/or matrix |
 | `stats`            | Print basic statistics |
 | `export`           | Stream edges in various formats |
+| `distance`         | Compute distances between sequences or paths |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
@@ -166,11 +174,38 @@ Gz = parse_gfa("input.gfa.gz", build_graph=True, build_matrix=False)
 G_seq = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_seq=True)
 ```
 
+Additional helpers are provided in ``gfa2network.analysis``:
+
+```python
+from gfa2network.analysis import sequence_distance, genome_distance, load_paths
+
+# Distance between two sequences stored on nodes
+dist = sequence_distance(G_seq, "ACGT", "TTTT")
+
+# Load path definitions and compare two genomes
+paths = load_paths("input.gfa")
+dist2 = genome_distance(G, paths[b"p1"], paths[b"p2"])
+```
+
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an
 undirected graph or specify a `weight_tag` to use numeric edge weights.  The
 module additionally exposes a helper `convert_format` to turn the returned COO
 matrix into CSR/CSC/DOK formats.
+
+### ``parse_gfa`` parameters
+
+| Argument | Meaning |
+| -------- | ------- |
+| ``path`` | Input GFA file or ``-`` for stdin |
+| ``build_graph`` | Return a NetworkX graph |
+| ``build_matrix`` | Return an adjacency matrix |
+| ``directed`` | Treat graph as directed (default ``True``) |
+| ``weight_tag`` | Numeric GFA tag to use as edge weight |
+| ``store_seq`` | Attach sequences to nodes |
+| ``strip_orientation`` | Remove ``+/-`` from segment IDs |
+| ``verbose`` | Print progress messages |
+| ``bidirected`` | Append orientation to node IDs |
 
 ## Implementation Notes
 

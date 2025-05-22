@@ -3,7 +3,7 @@ from __future__ import annotations
 import networkx as nx
 
 from .builders import parse_gfa
-from .parser import GFAParser, PathRecord
+from .parser import GFAParser, PathRecord, WalkRecord
 
 
 def compute_stats(
@@ -30,3 +30,89 @@ def compute_stats(
         "max_degree": max_degree,
         "density": density,
     }
+
+
+def sequence_distance(G: nx.Graph, seq_a: str | bytes, seq_b: str | bytes) -> float:
+    """Return the shortest path length between two sequences.
+
+    Parameters
+    ----------
+    G : nx.Graph
+        Graph with sequences stored on nodes via the ``sequence`` attribute.
+    seq_a, seq_b : str | bytes
+        Sequence strings or bytes to locate in ``G``.
+
+    Raises
+    ------
+    KeyError
+        If either sequence is not present on any node.
+    """
+
+    def _to_bytes(s: str | bytes) -> bytes:
+        return s if isinstance(s, bytes) else s.encode()
+
+    s1 = _to_bytes(seq_a)
+    s2 = _to_bytes(seq_b)
+
+    seq2node: dict[bytes, bytes] = {}
+    for node, data in G.nodes(data=True):
+        seq = data.get("sequence")
+        if isinstance(seq, (bytes, bytearray)):
+            seq2node[bytes(seq)] = node
+
+    if s1 not in seq2node or s2 not in seq2node:
+        missing = [repr(x) for x in (seq_a, seq_b) if _to_bytes(x) not in seq2node]
+        raise KeyError(f"sequence(s) {', '.join(missing)} not found")
+
+    u = seq2node[s1]
+    v = seq2node[s2]
+    return nx.shortest_path_length(G, u, v, weight="weight")
+
+
+def genome_distance(
+    G: nx.Graph,
+    nodes_a: list[bytes] | tuple[bytes, ...] | set[bytes],
+    nodes_b: list[bytes] | tuple[bytes, ...] | set[bytes],
+    *,
+    method: str = "min",
+) -> float:
+    """Calculate distance between two sets of nodes.
+
+    ``method`` can be ``"min"`` (default) to return the minimal distance or
+    ``"mean"`` to average all pairwise distances between reachable nodes.
+    """
+
+    nodes_a = list(nodes_a)
+    nodes_b = list(nodes_b)
+
+    if method == "min":
+        lengths = nx.multi_source_dijkstra_path_length(G, nodes_a, weight="weight")
+        dists = [lengths[n] for n in nodes_b if n in lengths]
+        if not dists:
+            raise nx.NetworkXNoPath("no path between node sets")
+        return min(dists)
+    elif method == "mean":
+        total = 0.0
+        count = 0
+        for u in nodes_a:
+            for v in nodes_b:
+                try:
+                    total += nx.shortest_path_length(G, u, v, weight="weight")
+                    count += 1
+                except nx.NetworkXNoPath:
+                    continue
+        if count == 0:
+            raise nx.NetworkXNoPath("no path between node sets")
+        return total / count
+    else:
+        raise ValueError(f"unknown method: {method}")
+
+
+def load_paths(path: str) -> dict[bytes, list[bytes]]:
+    """Return mapping of path/walk names to their node lists."""
+
+    paths: dict[bytes, list[bytes]] = {}
+    for rec in GFAParser(path):
+        if isinstance(rec, (PathRecord, WalkRecord)):
+            paths[rec.name] = [seg for seg, _ in rec.segments]
+    return paths
