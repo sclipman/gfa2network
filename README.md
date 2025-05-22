@@ -40,6 +40,7 @@ processed on ordinary hardware.
 - Bidirected graph representation via `--bidirected`
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
+- Shortest path distances between sequences or whole genomes
 
 The adjacency matrix can be written in several SciPy sparse representations:
 
@@ -123,6 +124,12 @@ gfa2network stats input.gfa
 
 # Export a simple edge list
 gfa2network export input.gfa --format edge-list > edges.txt
+
+# Shortest path between two sequences
+gfa2network distance input.gfa --seq ACGT TTTT
+
+# Distance between two paths
+gfa2network distance input.gfa --path sample1 sample2
 ```
 
 
@@ -133,6 +140,7 @@ See `gfa2network -h` for all command line options.
 | `convert`          | Convert a GFA into graph and/or matrix |
 | `stats`            | Print basic statistics |
 | `export`           | Stream edges in various formats |
+| `distance`         | Compute distances between sequences or paths |
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
@@ -165,6 +173,25 @@ Gz = parse_gfa("input.gfa.gz", build_graph=True, build_matrix=False)
 # Store sequences on nodes
 G_seq = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_seq=True)
 ```
+
+Additional helpers are provided in ``gfa2network.analysis``:
+
+```python
+from gfa2network.analysis import sequence_distance, genome_distance, load_paths
+
+# Distance between two sequences stored on nodes
+dist = sequence_distance(G_seq, "ACGT", "TTTT")
+
+# Load path definitions and compare two genomes
+paths = load_paths("input.gfa")
+dist2 = genome_distance(G, paths[b"p1"], paths[b"p2"])
+```
+
+`sequence_distance` locates nodes by their stored sequence strings and returns
+the shortest path length between them.  `genome_distance` accepts two node
+sets and calculates either the minimal or mean distance (``method="min"`` or
+``"mean"``).  The helper ``load_paths`` reads ``P`` or ``O`` records from a GFA
+file and maps path names to node lists for convenient lookup.
 
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an
