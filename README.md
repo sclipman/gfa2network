@@ -38,6 +38,8 @@ processed on ordinary hardware.
 - Adjacency matrices in several sparse formats
 - Helper utilities to convert or save matrices
 - Bidirected graph representation via `--bidirected`
+- Compute shortest path distances between sequences or genomes
+- `distance` subcommand to query sequences or paths
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
 - Shortest path distances between sequences or whole genomes
@@ -130,6 +132,7 @@ gfa2network distance input.gfa --seq ACGT TTTT
 
 # Distance between two paths
 gfa2network distance input.gfa --path sample1 sample2
+
 ```
 
 
@@ -198,6 +201,20 @@ Pass `store_seq=True` to attach the sequences from `S` records as the
 undirected graph or specify a `weight_tag` to use numeric edge weights.  The
 module additionally exposes a helper `convert_format` to turn the returned COO
 matrix into CSR/CSC/DOK formats.
+
+### ``parse_gfa`` parameters
+
+| Argument | Meaning |
+| -------- | ------- |
+| ``path`` | Input GFA file or ``-`` for stdin |
+| ``build_graph`` | Return a NetworkX graph |
+| ``build_matrix`` | Return an adjacency matrix |
+| ``directed`` | Treat graph as directed (default ``True``) |
+| ``weight_tag`` | Numeric GFA tag to use as edge weight |
+| ``store_seq`` | Attach sequences to nodes |
+| ``strip_orientation`` | Remove ``+/-`` from segment IDs |
+| ``verbose`` | Print progress messages |
+| ``bidirected`` | Append orientation to node IDs |
 
 ## Implementation Notes
 
