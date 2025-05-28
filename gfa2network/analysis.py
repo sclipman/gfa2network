@@ -15,7 +15,11 @@ from .parser import GFAParser, PathRecord, WalkRecord
 
 
 def compute_stats(
-    path: str, *, directed: bool = True, strip_orientation: bool = False
+    path: str,
+    *,
+    directed: bool = True,
+    strip_orientation: bool = False,
+    raw_bytes_id: bool = False,
 ) -> dict[str, float | int]:
     """Return simple graph statistics for *path*."""
     G = parse_gfa(
@@ -24,6 +28,7 @@ def compute_stats(
         build_matrix=False,
         directed=directed,
         strip_orientation=strip_orientation,
+        raw_bytes_id=raw_bytes_id,
     )
     path_count = sum(1 for rec in GFAParser(path) if isinstance(rec, PathRecord))
     components = nx.number_connected_components(G.to_undirected())
@@ -116,17 +121,19 @@ def genome_distance(
         raise ValueError(f"unknown method: {method}")
 
 
-def load_paths(path: str) -> dict[bytes, list[bytes]]:
+def load_paths(path: str, *, raw_bytes: bool = False) -> dict[str | bytes, list[str | bytes]]:
     """Return mapping of path/walk names to their node lists."""
 
-    paths: dict[bytes, list[bytes]] = {}
+    paths: dict[str | bytes, list[str | bytes]] = {}
     for rec in GFAParser(path):
         if isinstance(rec, (PathRecord, WalkRecord)):
-            paths[rec.name] = [seg for seg, _ in rec.segments]
+            key = rec.name if raw_bytes else rec.name.decode("ascii")
+            segs = [seg if raw_bytes else seg.decode("ascii") for seg, _ in rec.segments]
+            paths[key] = segs
     return paths
 
 
-def genome_distance_matrix(gfa_path: str, method: str = "min"):
+def genome_distance_matrix(gfa_path: str, method: str = "min", *, raw_bytes_id: bool = False):
     """Return pairwise distances between all paths in *gfa_path*.
 
     The function loads path definitions, builds the graph and computes
@@ -147,10 +154,10 @@ def genome_distance_matrix(gfa_path: str, method: str = "min"):
         when pandas is installed, otherwise a ``numpy.ndarray``.
     """
 
-    paths = load_paths(gfa_path)
+    paths = load_paths(gfa_path, raw_bytes=raw_bytes_id)
     names = list(paths)
 
-    G = parse_gfa(gfa_path, build_graph=True, build_matrix=False)
+    G = parse_gfa(gfa_path, build_graph=True, build_matrix=False, raw_bytes_id=raw_bytes_id)
 
     import numpy as np
 

@@ -15,8 +15,8 @@ def test_bidirected_edges_and_distance(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, bidirected=True)
     assert not G.is_directed()
-    assert G.has_edge(b"s1:+", b"s2:-")
-    assert G.has_edge(b"s2:+", b"s1:-")
-    d1 = nx.shortest_path_length(G, b"s1:+", b"s2:-")
-    d2 = nx.shortest_path_length(G, b"s2:+", b"s1:-")
+    assert G.has_edge("s1:+", "s2:-")
+    assert G.has_edge("s2:+", "s1:-")
+    d1 = nx.shortest_path_length(G, "s1:+", "s2:-")
+    d2 = nx.shortest_path_length(G, "s2:+", "s1:-")
     assert d1 == d2 == 1

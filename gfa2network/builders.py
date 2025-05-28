@@ -40,6 +40,7 @@ def parse_gfa(
     backend: str = "networkx",
     dtype: str | object = "float64",
     asymmetric: bool = False,
+    raw_bytes_id: bool = False,
 ):
     """Stream-parse *path* and return requested artefacts.
 
@@ -78,6 +79,16 @@ def parse_gfa(
     seq_bytes_total = 0
 
     parser = GFAParser(path)
+    node_str: dict[bytes, str] = {}
+
+    def _id(n: bytes) -> bytes | str:
+        if raw_bytes_id:
+            return n
+        s = node_str.get(n)
+        if s is None:
+            s = n.decode("ascii")
+            node_str[n] = s
+        return s
     for lineno, record in enumerate(parser, 1):
         if isinstance(record, Segment):
             seg = record.id
@@ -86,15 +97,15 @@ def parse_gfa(
                     for ori in ("+", "-"):
                         node = seg + b":" + ori.encode()
                         if store_seq and record.sequence is not None:
-                            G.add_node(node, sequence=record.sequence)
+                            G.add_node(_id(node), sequence=record.sequence)
                         else:
-                            G.add_node(node)
+                            G.add_node(_id(node))
                 else:
                     if store_seq and record.sequence is not None:
-                        G.add_node(seg, sequence=record.sequence)
+                        G.add_node(_id(seg), sequence=record.sequence)
                         seq_bytes_total += len(record.sequence)
                     else:
-                        G.add_node(seg)
+                        G.add_node(_id(seg))
             if build_matrix:
                 if bidirected:
                     for ori in ("+", "-"):
@@ -150,9 +161,9 @@ def parse_gfa(
 
                 def add_graph_edge(a: bytes, b: bytes) -> None:
                     if w is None:
-                        G.add_edge(a, b, **attrs)
+                        G.add_edge(_id(a), _id(b), **attrs)
                     else:
-                        G.add_edge(a, b, weight=w, **attrs)
+                        G.add_edge(_id(a), _id(b), weight=w, **attrs)
 
                 add_graph_edge(u_node, v_node)
                 if bidirected and not keep_directed_bidir:

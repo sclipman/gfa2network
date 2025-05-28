@@ -160,6 +160,7 @@ See `gfa2network -h` for all command line options.
 | `--store-seq`      | Keep sequences from `S` records on nodes |
 | `--strip-orientation` | Remove `+/-` from IDs (legacy) |
 | `--bidirected`     | Use bidirected node representation |
+| `--raw-bytes-id`   | Use legacy byte strings for node IDs |
 | `--keep-directed-bidir` | Keep directed bidirected edges |
 | `--verbose`        | Emit progress information |
 
@@ -193,7 +194,7 @@ dist = sequence_distance(G_seq, "ACGT", "TTTT")
 
 # Load path definitions and compare two genomes
 paths = load_paths("input.gfa")
-dist2 = genome_distance(G, paths[b"p1"], paths[b"p2"])
+dist2 = genome_distance(G, paths["p1"], paths["p2"])
 
 # Pairwise distances between all paths
 mat = genome_distance_matrix("input.gfa")
@@ -225,6 +226,7 @@ matrix into CSR/CSC/DOK formats.
 | ``strip_orientation`` | Remove ``+/-`` from segment IDs |
 | ``verbose`` | Print progress messages |
 | ``bidirected`` | Append orientation to node IDs |
+| ``raw_bytes_id`` | Use byte strings for node IDs |
 
 ## Implementation Notes
 
