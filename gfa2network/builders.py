@@ -324,6 +324,7 @@ def _parse_gfa_split(
     parser = GFAParser(path)
     segments: dict[bytes, Segment] = {}
     edges: list[EdgeRecord | ContainmentRecord] = []
+    links: list[Link] = []
     breakpoints: defaultdict[bytes, set[int]] = defaultdict(set)
 
     for rec in parser:
@@ -341,9 +342,12 @@ def _parse_gfa_split(
                 breakpoints[rec.to_segment].add(rec.to_start)
             if rec.to_end is not None:
                 breakpoints[rec.to_segment].add(rec.to_end)
+        elif isinstance(rec, Link):
+            links.append(rec)
 
     records: list[Segment | Link | EdgeRecord] = []
-    mapping: dict[tuple[bytes, int, int], bytes] = {}
+    mapping: dict[tuple[bytes, int | None, int | None], bytes] = {}
+    full_segment: dict[bytes, bytes] = {}
 
     for seg_id, seg in segments.items():
         bps = sorted(breakpoints.get(seg_id, {0}))
@@ -358,8 +362,17 @@ def _parse_gfa_split(
             mapping[(seg_id, a, b)] = nid
             records.append(Segment(nid, b - a, None, None))
             intervals.append((a, b, nid))
-        if len(intervals) == 1 and seg.length is not None:
-            mapping[(seg_id, None, None)] = intervals[0][2]
+        # map orientation-only edges to the interval spanning the full length
+        if seg.length is not None:
+            for a, b, nid in intervals:
+                if a == 0 and b == seg.length:
+                    full_segment[seg_id] = nid
+                    break
+        if seg_id not in full_segment:
+            full_segment[seg_id] = intervals[0][2]
+        mapping[(seg_id, None, None)] = full_segment[seg_id]
+        if seg.length is not None:
+            mapping[(seg_id, 0, seg.length)] = full_segment[seg_id]
         for (a1, b1, id1), (a2, b2, id2) in zip(intervals[:-1], intervals[1:]):
             records.append(Link(id1, id2, "+", "+", None, None))
 
@@ -390,6 +403,28 @@ def _parse_gfa_split(
                 rec.to_start,
                 rec.to_end,
                 rec.cigar,
+                rec.tags,
+            )
+        )
+
+    for rec in links:
+        try:
+            u = full_segment[rec.from_segment]
+            v = full_segment[rec.to_segment]
+        except KeyError:
+            missing = rec.from_segment if rec.from_segment not in full_segment else rec.to_segment
+            warnings.warn(
+                f"skipping link with undefined segment {missing.decode()}",
+                RuntimeWarning,
+            )
+            continue
+        records.append(
+            Link(
+                u,
+                v,
+                rec.orientation_from,
+                rec.orientation_to,
+                rec.overlap,
                 rec.tags,
             )
         )

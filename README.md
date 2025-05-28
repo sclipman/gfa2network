@@ -103,6 +103,15 @@ This project targets Python 3.8 or later and depends on the following packages:
 - `pytest` (optional) for running the unit tests
 - `python-igraph` (optional) for the igraph backend
 
+## Comparison to Other Tools
+
+`gfapy` focuses on full read/write support for all GFA fields while
+`vg` and `ODGI` provide highly optimised graph implementations with many
+algorithms built in.  **GFA2Network** is a lightweight parser whose niche is
+streaming conversion of GFA files into NetworkX graphs or sparse matrices with
+very small memory overhead.  Use it when you only need the basic connectivity in
+a familiar Python representation without loading an entire toolkit.
+
 ## Quick Start
 
 The examples below illustrate typical use cases.  Replace `input.gfa` with your
