@@ -45,6 +45,7 @@ def parse_gfa(
     asymmetric: bool = False,
     raw_bytes_id: bool = False,
     return_node_list: bool = False,
+    max_tag_mb: float = 100.0,
 ):
     """Stream-parse *path* and return the requested artefacts.
 
@@ -243,7 +244,7 @@ def parse_gfa(
                 print(
                     f"[warning] stored sequences use {extra_gb:.1f} GB (>50% of available memory)",
                 )
-    if store_tags and build_graph and tags_bytes_total > 100_000_000:
+    if store_tags and build_graph and tags_bytes_total > max_tag_mb * 1_000_000:
         warnings.warn(
             f"stored tag dictionaries use {tags_bytes_total/1e6:.1f} MB",
             RuntimeWarning,

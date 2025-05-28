@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import networkx as nx
 import warnings
+import os
 
 try:
     import pandas as pd  # type: ignore
@@ -130,6 +131,11 @@ def genome_distance(
             raise nx.NetworkXNoPath("no path between node sets")
         return min(dists)
     elif method == "mean":
+        if len(nodes_a) * len(nodes_b) > 1000 and os.getenv("GFANET_DISABLE_WARNINGS") != "1":
+            warnings.warn(
+                "Mean distance scales quadratically; this may be very slow on large sets",
+                RuntimeWarning,
+            )
         total = 0.0
         count = 0
         for u in nodes_a:

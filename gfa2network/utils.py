@@ -63,11 +63,11 @@ def convert_format(A, fmt: str, *, verbose: bool = False):
     return out
 
 
-def save_matrix(A, dest: Path, *, verbose: bool = False):
+def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5.0):
     """Write *A* to *dest* with progress bar and dense-size guard."""
     if not _HAS_SCIPY:
         raise RuntimeError("SciPy required for matrix output")
-    MAX_DENSE_BYTES = 5_000_000_000  # 5 GB
+    MAX_DENSE_BYTES = max_dense_gb * 1_000_000_000
     if dest.suffix in {".csv", ".npy"}:
         nnz = A.nnz if sp.issparse(A) else A.size
         if nnz * 8 > MAX_DENSE_BYTES:
