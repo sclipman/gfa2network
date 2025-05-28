@@ -131,6 +131,7 @@ def parse_gfa_igraph(
     verbose: bool = False,
     bidirected: bool = False,
     keep_directed_bidir: bool = False,
+    return_node_list: bool = False,
 ) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
     """Parse *path* and return an igraph graph and/or a sparse matrix."""
     if not _HAS_IGRAPH:
@@ -160,8 +161,21 @@ def parse_gfa_igraph(
 
     G = builder.graph if build_graph else None
     A = builder.to_matrix() if build_matrix else None
+    node_list = None
+    if build_matrix and return_node_list:
+        if G is not None:
+            node_list = [v["name"] for v in G.vs]  # type: ignore[union-attr]
+        else:
+            node_list = [None] * len(builder._node_index)
+            for node, idx in builder._node_index.items():
+                node_list[idx] = node.decode()
     if build_graph and build_matrix:
+        if return_node_list:
+            return G, A, node_list
         return G, A
     if build_graph:
         return G
-    return A
+    if build_matrix:
+        if return_node_list:
+            return A, node_list
+        return A
