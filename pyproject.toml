@@ -25,3 +25,7 @@ gfa2network = "gfa2network.cli:main"
 
 [tool.black]
 line-length = 88
+
+[tool.setuptools.packages.find]
+include = ["gfa2network"]
+exclude = ["assets", "scripts", "tests"]
