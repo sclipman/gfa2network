@@ -7,7 +7,7 @@
     style="margin-right:10px;"/>
 </p>
 
-# GFA2Network: Memory-efficent GFA→Graph Converter
+# GFA2Network: Memory-efficient GFA→Graph Converter
 
 **GFA2Network** is a small Python library that converts
 [GFA-1](https://github.com/GFA-spec/GFA-spec) and
