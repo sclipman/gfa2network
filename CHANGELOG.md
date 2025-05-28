@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.11.0
+- Clarified documentation on graph interpretation and distance semantics.
+- Distance helpers now emit a warning when called on a directed bidirected graph.
+
 ## v0.10.0
 - Saving an adjacency matrix now writes `<outfile>.nodes.tsv` mapping row
   indices to node identifiers.

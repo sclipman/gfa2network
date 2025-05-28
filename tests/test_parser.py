@@ -90,6 +90,7 @@ def test_unknown_record_warning(tmp_path: Path):
     gfa = tmp_path / "bad.gfa"
     gfa.write_text("X\tfoo\nX\tbar\n")
     with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
         list(GFAParser(gfa))
     assert len(w) == 1
 
