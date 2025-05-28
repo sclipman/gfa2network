@@ -82,7 +82,9 @@ class GFAParser:
             self.file = source
         self._warned_unknown = False
 
-    def __iter__(self) -> Iterator[
+    def __iter__(
+        self,
+    ) -> Iterator[
         Segment | Link | EdgeRecord | ContainmentRecord | PathRecord | WalkRecord
     ]:
         if self.file is not None:
@@ -102,7 +104,14 @@ class GFAParser:
             for line in fh:
                 if not line:
                     continue
-                if line[0] not in (ord("S"), ord("L"), ord("P"), ord("E"), ord("C"), ord("O")):
+                if line[0] not in (
+                    ord("S"),
+                    ord("L"),
+                    ord("P"),
+                    ord("E"),
+                    ord("C"),
+                    ord("O"),
+                ):
                     if line[0] not in (ord("H"), ord("F")) and not self._warned_unknown:
                         warnings.warn(
                             f"Skipping unsupported record: {line[:1].decode()}",
@@ -125,14 +134,22 @@ class GFAParser:
                                 fourth = fields[3]
                                 # Heuristically detect if field 4 is a tag
                                 parts = fourth.split(b":", 2)
-                                if len(parts) == 3 and len(parts[0]) == 2 and len(parts[1]) == 1:
+                                if (
+                                    len(parts) == 3
+                                    and len(parts[0]) == 2
+                                    and len(parts[1]) == 1
+                                ):
                                     tag_start = 3
                                 else:
                                     seq = fourth
                                     tag_start = 4
                         except ValueError:
                             seq = third
-                    tags = self._parse_tags(fields[tag_start:]) if len(fields) > tag_start else None
+                    tags = (
+                        self._parse_tags(fields[tag_start:])
+                        if len(fields) > tag_start
+                        else None
+                    )
                     yield Segment(fields[1], length, seq, tags)
                 elif rec_type == b"L":
                     yield self._parse_link(fields)
@@ -154,24 +171,24 @@ class GFAParser:
         tags: dict[str, Any] = {}
         for f in fields:
             try:
-                tag, typ, value = f.decode().split(':', 2)
+                tag, typ, value = f.decode().split(":", 2)
             except ValueError:
                 continue
-            if typ == 'i':
+            if typ == "i":
                 try:
                     tags[tag] = int(value)
                 except ValueError:
                     pass
-            elif typ == 'f':
+            elif typ == "f":
                 try:
                     tags[tag] = float(value)
                 except ValueError:
                     pass
-            elif typ == 'B':
+            elif typ == "B":
                 try:
-                    tags[tag] = [int(x) for x in value.split(',') if x]
+                    tags[tag] = [int(x) for x in value.split(",") if x]
                 except ValueError:
-                    tags[tag] = value.split(',')
+                    tags[tag] = value.split(",")
             else:
                 tags[tag] = value
         return tags or None

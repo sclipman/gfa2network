@@ -4,6 +4,7 @@ import networkx as nx
 
 try:
     import pandas as pd  # type: ignore
+
     _HAS_PANDAS = True
 except Exception:  # pragma: no cover - optional dependency
     pd = None  # type: ignore

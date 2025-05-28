@@ -66,7 +66,9 @@ def main(argv: list[str] | None = None) -> None:
         action="store_true",
         help="Strip +/- from IDs (v0.1 behaviour)",
     )
-    p_conv.add_argument("--bidirected", action="store_true", help="Use bidirected representation")
+    p_conv.add_argument(
+        "--bidirected", action="store_true", help="Use bidirected representation"
+    )
     p_conv.add_argument("--verbose", action="store_true")
     p_conv.add_argument(
         "-o",
@@ -77,7 +79,11 @@ def main(argv: list[str] | None = None) -> None:
 
     p_exp = sub.add_parser("export", help="Stream edges in simple formats")
     p_exp.add_argument("gfa")
-    p_exp.add_argument("--format", default="edge-list", choices=["edge-list", "graphml", "gexf", "json"])
+    p_exp.add_argument(
+        "--format",
+        default="edge-list",
+        choices=["edge-list", "graphml", "gexf", "json"],
+    )
     p_exp.add_argument("--bidirected", action="store_true")
     p_exp.add_argument("--output", help="Output path", default="-")
 
@@ -99,7 +105,9 @@ def main(argv: list[str] | None = None) -> None:
 
     p_dm = sub.add_parser("distance-matrix", help="Pairwise distances between paths")
     p_dm.add_argument("gfa", help="Input *.gfa* file")
-    p_dm.add_argument("-o", "--output", required=True, help="Write matrix to PATH (.csv|.npy|.npz)")
+    p_dm.add_argument(
+        "-o", "--output", required=True, help="Write matrix to PATH (.csv|.npy|.npz)"
+    )
     p_dm.add_argument("--method", choices=["min", "mean"], default="min")
 
     args = parser.parse_args(argv)
@@ -219,7 +227,9 @@ def main(argv: list[str] | None = None) -> None:
                 nodes_b = paths[name_b.encode()]
             except KeyError as exc:
                 raise SystemExit(f"unknown path: {exc.args[0].decode()}") from exc
-            G = parse_gfa(args.gfa, build_graph=True, build_matrix=False, directed=args.directed)
+            G = parse_gfa(
+                args.gfa, build_graph=True, build_matrix=False, directed=args.directed
+            )
             dist = genome_distance(G, nodes_a, nodes_b)
         print(dist)
     elif args.cmd == "distance-matrix":
