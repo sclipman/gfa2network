@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.12.0
+- Added `--split-on-alignment` option to split segments at alignment
+  boundaries. Emits a warning if the number of sub-nodes exceeds 10× the
+  original segment count.
+
 ## v0.11.0
 - Clarified documentation on graph interpretation and distance semantics.
 - Distance helpers now emit a warning when called on a directed bidirected graph.

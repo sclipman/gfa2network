@@ -109,6 +109,11 @@ def main(argv: list[str] | None = None) -> None:
     p_conv.add_argument("--store-seq", action="store_true")
     p_conv.add_argument("--store-tags", action="store_true")
     p_conv.add_argument(
+        "--split-on-alignment",
+        action="store_true",
+        help="Split segments at alignment boundaries",
+    )
+    p_conv.add_argument(
         "--strip-orientation",
         action="store_true",
         help="Strip +/- from IDs (v0.1 behaviour)",
@@ -202,6 +207,7 @@ def main(argv: list[str] | None = None) -> None:
             raw_bytes_id=args.raw_bytes_id,
             return_node_list=build_mat and not args.no_node_map,
             max_tag_mb=args.max_tag_mb,
+            split_on_alignment=args.split_on_alignment,
         )
         if build_g and build_mat:
             if build_mat and not args.no_node_map:

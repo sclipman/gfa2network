@@ -38,6 +38,8 @@ processed on ordinary hardware.
 - Adjacency matrices in several sparse formats
 - Helper utilities to convert or save matrices
 - Bidirected graph representation via `--bidirected`
+- Alignment-aware splitting via `--split-on-alignment`
+  (may increase memory usage; a warning is shown if >10× nodes are created)
 - Compute shortest path distances between sequences or genomes
 - `distance` subcommand to query sequences or paths
 - `distance-matrix` subcommand to compute pairwise path distances
@@ -115,6 +117,9 @@ gfa2network convert input.gfa --matrix adj.npz --matrix-format coo
 
 # Directed graph only with verbose progress output
 gfa2network convert input.gfa --graph --verbose
+
+# Split segments on alignment boundaries
+gfa2network convert input.gfa --graph --split-on-alignment
 
 # Build an igraph representation and save it to disk
 gfa2network convert input.gfa --graph --backend igraph -o graph.pkl
