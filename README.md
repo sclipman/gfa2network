@@ -105,12 +105,28 @@ This project targets Python 3.8 or later and depends on the following packages:
 
 ## Comparison to Other Tools
 
-[`gfapy`](https://github.com/ggonnella/gfapy) focuses on full read/write support for all GFA fields while
-[`vg`](https://github.com/vgteam/vg) and [`ODGI`](https://github.com/pangenome/odgi) provide highly optimised graph implementations with many
-algorithms built in.  **GFA2Network** is a lightweight parser whose niche is
-streaming conversion of GFA files into NetworkX graphs or sparse matrices with
-very small memory overhead.  Use it when you only need the basic connectivity in
-a familiar Python representation without loading an entire toolkit.
+[`gfapy`](https://github.com/ggonnella/gfapy) focuses on full read/write support for every GFA field, building in-memory object models for complete round-trip fidelity.  
+[`vg`](https://github.com/vgteam/vg) and [`ODGI`](https://github.com/pangenome/odgi) are C++-based pangenome graph engines offering highly optimized data structures, indexing, mapping, variant calling and a suite of built-in algorithms.
+
+**GFA2Network** occupies a different niche: it’s a **lightweight, streaming parser** that converts GFA files **line-by-line** into familiar Python graph representations with **minimal RAM usage**. Use GFA2Network when you:
+
+- Only need **basic connectivity** (nodes and edges) rather than full GFA compliance  
+- Want to apply **custom NetworkX algorithms** (centrality, clustering, shortest paths) without learning a new C++ API  
+- Prefer a **sparse-matrix view** (SciPy) for downstream analyses (PCA, distance-based clustering)  
+- Need to process **million-node graphs** on standard hardware in a **single pass**  
+
+### Key Benefits of GFA2Network
+
+- **Streaming & low memory overhead**  
+  Parses multi-gigabyte GFAs without loading the entire file into RAM; memory scales with the number of edges only.  
+- **Native Python graph objects**  
+  Outputs `networkx.Graph` or SciPy sparse matrix out of the box; optional igraph backend for C-level performance.  
+- **Flexible metadata support**  
+  Attach sequences or tag dictionaries as node/edge attributes for richer analyses in pandas, scikit-learn, etc.  
+- **Minimal, common dependencies**  
+  Installable via `pip install gfa2network`; extra features (e.g. `python-igraph`, `tqdm`) are optional.  
+- **Seamless integration**  
+  Combine with any Python data-science stack—no heavyweight toolkit required.  
 
 ## Quick Start
 
