@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.7.0
+- Node identifiers are now decoded to strings when building NetworkX graphs.
+- Added `--raw-bytes-id` CLI flag for legacy byte behaviour.
+- GraphML and GEXF exports use plain string IDs.
+
 ## v0.6.0
 - Added optional pandas support in `analysis` for DataFrame results
 - Introduced `genome_distance_matrix` helper

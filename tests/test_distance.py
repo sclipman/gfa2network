@@ -32,7 +32,7 @@ def test_genome_distance(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "paths.gfa")
     paths = load_paths(str(gfa))
     G = parse_gfa(gfa, build_graph=True, build_matrix=False)
-    d = genome_distance(G, paths[b"p1"], paths[b"p2"], method="min")
+    d = genome_distance(G, paths["p1"], paths["p2"], method="min")
     assert d == 0
 
 

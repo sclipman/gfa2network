@@ -20,15 +20,15 @@ def write_gfa(tmp_path: Path) -> Path:
 def test_orientation_attributes(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False)
-    assert G.edges[(b"s1", b"s2")]["orientation_from"] == "+"
-    assert G.edges[(b"s1", b"s2")]["orientation_to"] == "-"
+    assert G.edges[("s1", "s2")]["orientation_from"] == "+"
+    assert G.edges[("s1", "s2")]["orientation_to"] == "-"
 
 
 def test_strip_orientation(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, strip_orientation=True)
-    assert b"s1" in G.nodes
-    assert "orientation_from" not in G.edges[(b"s1", b"s2")]
+    assert "s1" in G.nodes
+    assert "orientation_from" not in G.edges[("s1", "s2")]
 
 
 def test_path_record(tmp_path: Path):
@@ -75,7 +75,7 @@ def test_tag_parsing(tmp_path: Path):
 def test_bidirected(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, bidirected=True)
-    assert (b"s1:+", b"s2:-") in G.edges
+    assert ("s1:+", "s2:-") in G.edges
 
 
 def test_segment_length(tmp_path: Path):
@@ -101,3 +101,9 @@ def test_gzip_input(tmp_path: Path):
     assert len([r for r in recs if isinstance(r, PathRecord)]) == 1
     G = parse_gfa(gz, build_graph=True, build_matrix=False)
     assert G.number_of_nodes() == 2
+
+
+def test_raw_bytes_flag(tmp_path: Path):
+    gfa = write_gfa(tmp_path)
+    G = parse_gfa(gfa, build_graph=True, build_matrix=False, raw_bytes_id=True)
+    assert b"s1" in G.nodes

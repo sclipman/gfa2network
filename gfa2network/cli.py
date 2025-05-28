@@ -24,6 +24,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument(
         "--version", action="version", version=f"gfa2network {__version__}"
     )
+    parser.add_argument(
+        "--raw-bytes-id",
+        action="store_true",
+        help="Use raw bytes for node identifiers (legacy)",
+    )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     p_conv = sub.add_parser("convert", help="Convert GFA to graph or matrix")
@@ -160,6 +165,7 @@ def main(argv: list[str] | None = None) -> None:
             backend=args.backend,
             dtype=args.dtype,
             asymmetric=args.asymmetric,
+            raw_bytes_id=args.raw_bytes_id,
         )
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]
@@ -209,6 +215,7 @@ def main(argv: list[str] | None = None) -> None:
                 strip_orientation=False,
                 bidirected=args.bidirected,
                 keep_directed_bidir=args.keep_directed_bidir,
+                raw_bytes_id=args.raw_bytes_id,
             )
             if parser_format == "graphml":
                 nx.write_graphml(G, args.output)
@@ -232,27 +239,40 @@ def main(argv: list[str] | None = None) -> None:
                 build_matrix=False,
                 directed=args.directed,
                 store_seq=True,
+                raw_bytes_id=args.raw_bytes_id,
             )
             dist = sequence_distance(G, seq_a, seq_b)
         else:
-            paths = load_paths(args.gfa)
+            paths = load_paths(args.gfa, raw_bytes=args.raw_bytes_id)
             name_a, name_b = args.path
             try:
-                nodes_a = paths[name_a.encode()]
-                nodes_b = paths[name_b.encode()]
+                key_a = name_a if not args.raw_bytes_id else name_a.encode()
+                key_b = name_b if not args.raw_bytes_id else name_b.encode()
+                nodes_a = paths[key_a]
+                nodes_b = paths[key_b]
             except KeyError as exc:
-                raise SystemExit(f"unknown path: {exc.args[0].decode()}") from exc
+                msg = exc.args[0]
+                if isinstance(msg, bytes):
+                    msg = msg.decode()
+                raise SystemExit(f"unknown path: {msg}") from exc
             G = parse_gfa(
-                args.gfa, build_graph=True, build_matrix=False, directed=args.directed
+                args.gfa,
+                build_graph=True,
+                build_matrix=False,
+                directed=args.directed,
+                raw_bytes_id=args.raw_bytes_id,
             )
             dist = genome_distance(G, nodes_a, nodes_b)
         print(dist)
     elif args.cmd == "distance-matrix":
-        M = genome_distance_matrix(args.gfa, method=args.method)
+        M = genome_distance_matrix(args.gfa, method=args.method, raw_bytes_id=args.raw_bytes_id)
         save_matrix(M, Path(args.output))
     elif args.cmd == "stats":
         stats = compute_stats(
-            args.gfa, directed=args.directed, strip_orientation=args.strip_orientation
+            args.gfa,
+            directed=args.directed,
+            strip_orientation=args.strip_orientation,
+            raw_bytes_id=args.raw_bytes_id,
         )
         print("nodes\t", stats["nodes"])
         print("edges\t", stats["edges"])
