@@ -251,19 +251,20 @@ def main(argv: list[str] | None = None) -> None:
         parser_format = args.format
         out_path = Path(args.output) if args.output != "-" else None
         if parser_format == "edge-list":
-            for rec in GFAParser(args.gfa):
-                if isinstance(rec, (Link, EdgeRecord, ContainmentRecord)):
-                    u = rec.from_segment
-                    v = rec.to_segment
-                    if args.bidirected:
-                        u = u + b":" + rec.orientation_from.encode()
-                        v = v + b":" + rec.orientation_to.encode()
-                    line = f"{u.decode()}\t{v.decode()}\n"
-                    if out_path:
-                        with open(out_path, "a") as fh:
-                            fh.write(line)
-                    else:
-                        sys.stdout.write(line)
+            fh = open(out_path, "w") if out_path else sys.stdout
+            try:
+                for rec in GFAParser(args.gfa):
+                    if isinstance(rec, (Link, EdgeRecord, ContainmentRecord)):
+                        u = rec.from_segment
+                        v = rec.to_segment
+                        if args.bidirected:
+                            u = u + b":" + rec.orientation_from.encode()
+                            v = v + b":" + rec.orientation_to.encode()
+                        line = f"{u.decode()}\t{v.decode()}\n"
+                        fh.write(line)
+            finally:
+                if out_path:
+                    fh.close()
         else:
             G = parse_gfa(
                 args.gfa,
