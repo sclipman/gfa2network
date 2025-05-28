@@ -13,6 +13,7 @@ from .parser import (
     ContainmentRecord,
 )
 from .utils import available_memory, convert_format, save_matrix
+from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
 
 try:
     import scipy.sparse as sp
@@ -34,8 +35,25 @@ def parse_gfa(
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
+    backend: str = "networkx",
 ):
-    """Stream-parse *path* and return requested artefacts."""
+    """Stream-parse *path* and return requested artefacts.
+
+    Set ``backend="igraph"`` to build an igraph representation instead of a
+    NetworkX graph.
+    """
+    if backend == "igraph":
+        return parse_gfa_igraph(
+            path,
+            build_graph=build_graph,
+            build_matrix=build_matrix,
+            directed=directed,
+            weight_tag=weight_tag,
+            store_seq=store_seq,
+            strip_orientation=strip_orientation,
+            verbose=verbose,
+            bidirected=bidirected,
+        )
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
     if store_seq and not build_graph:

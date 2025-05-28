@@ -117,36 +117,26 @@ def main(argv: list[str] | None = None) -> None:
             parser.error("convert requires --graph or --matrix")
         build_mat = bool(args.matrix)
         build_g = args.graph
-        if args.backend == "igraph":
-            if not _HAS_IGRAPH:
-                print(
-                    "Error: python-igraph is required for --backend igraph. Please install with `pip install python-igraph`.",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
-            result = parse_gfa_igraph(
-                args.gfa,
-                build_graph=build_g,
-                build_matrix=build_mat,
-                directed=args.directed,
-                weight_tag=args.weight_tag,
-                store_seq=args.store_seq,
-                strip_orientation=args.strip_orientation,
-                verbose=args.verbose,
-                bidirected=args.bidirected,
+        print(f"Using backend: {args.backend}")
+        if args.backend == "igraph" and not _HAS_IGRAPH:
+            print(
+                "Error: python-igraph is required for --backend igraph. Install with `pip install python-igraph`.",
+                file=sys.stderr,
             )
-        else:
-            result = parse_gfa(
-                args.gfa,
-                build_graph=build_g,
-                build_matrix=build_mat,
-                directed=args.directed,
-                weight_tag=args.weight_tag,
-                store_seq=args.store_seq,
-                strip_orientation=args.strip_orientation,
-                verbose=args.verbose,
-                bidirected=args.bidirected,
-            )
+            sys.exit(1)
+
+        result = parse_gfa(
+            args.gfa,
+            build_graph=build_g,
+            build_matrix=build_mat,
+            directed=args.directed,
+            weight_tag=args.weight_tag,
+            store_seq=args.store_seq,
+            strip_orientation=args.strip_orientation,
+            verbose=args.verbose,
+            bidirected=args.bidirected,
+            backend=args.backend,
+        )
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]
         elif build_g:

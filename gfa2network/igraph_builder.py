@@ -54,6 +54,8 @@ class IGraphBuilder:
                     self.graph.vs[idx]["length"] = seg.length  # type: ignore[union-attr]
                 if self.store_seq and seg.sequence is not None:
                     self.graph.vs[idx]["sequence"] = seg.sequence  # type: ignore[union-attr]
+                if seg.tags:
+                    self.graph.vs[idx]["tags"] = seg.tags  # type: ignore[union-attr]
         return idx
 
     # ------------------------------------------------------------------
