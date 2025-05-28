@@ -160,6 +160,7 @@ See `gfa2network -h` for all command line options.
 | `--store-seq`      | Keep sequences from `S` records on nodes |
 | `--strip-orientation` | Remove `+/-` from IDs (legacy) |
 | `--bidirected`     | Use bidirected node representation |
+| `--keep-directed-bidir` | Keep directed bidirected edges |
 | `--verbose`        | Emit progress information |
 
 `--store-seq` may drastically increase memory usage. The parser will warn when the

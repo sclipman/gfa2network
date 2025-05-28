@@ -30,14 +30,17 @@ class IGraphBuilder:
         store_seq: bool = False,
         strip_orientation: bool = False,
         bidirected: bool = False,
+        keep_directed_bidir: bool = False,
     ) -> None:
-        if bidirected and not directed:
-            raise ValueError("--bidirected incompatible with --undirected")
-        self.directed = True if bidirected else directed
+        if bidirected:
+            self.directed = True if keep_directed_bidir else False
+        else:
+            self.directed = directed
         self.weight_tag = weight_tag
         self.store_seq = store_seq
         self.strip_orientation = strip_orientation
         self.bidirected = bidirected
+        self.keep_directed_bidir = keep_directed_bidir
         self.graph = ig.Graph(directed=self.directed) if _HAS_IGRAPH else None
         self._node_index: dict[bytes, int] = {}
 
@@ -93,6 +96,14 @@ class IGraphBuilder:
         if w is not None:
             attrs["weight"] = w
         self.graph.add_edge(idx_u, idx_v, **attrs)  # type: ignore[union-attr]
+        if self.bidirected and not self.keep_directed_bidir:
+            rev_from = "-" if rec.orientation_from == "+" else "+"
+            rev_to = "-" if rec.orientation_to == "+" else "+"
+            u2 = v + b":" + rev_to.encode()
+            v2 = u + b":" + rev_from.encode()
+            idx_u2 = self._add_vertex(u2)
+            idx_v2 = self._add_vertex(v2)
+            self.graph.add_edge(idx_u2, idx_v2, **attrs)  # type: ignore[union-attr]
 
     # ------------------------------------------------------------------
     def to_matrix(self) -> "sp.spmatrix":
@@ -116,6 +127,7 @@ def parse_gfa_igraph(
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
+    keep_directed_bidir: bool = False,
 ) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
     """Parse *path* and return an igraph graph and/or a sparse matrix."""
     if not _HAS_IGRAPH:
@@ -129,6 +141,7 @@ def parse_gfa_igraph(
         store_seq=store_seq,
         strip_orientation=strip_orientation,
         bidirected=bidirected,
+        keep_directed_bidir=keep_directed_bidir,
     )
     parser = GFAParser(path)
     for lineno, record in enumerate(parser, 1):
