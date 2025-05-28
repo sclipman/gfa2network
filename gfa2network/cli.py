@@ -16,18 +16,37 @@ from .analysis import (
     genome_distance_matrix,
     load_paths,
 )
-from .version import __version__
+from importlib.metadata import version, PackageNotFoundError
 
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="gfa2network")
+    try:
+        pkg_version = version("gfa2network")
+    except PackageNotFoundError:  # pragma: no cover - fallback when not installed
+        from .version import __version__ as pkg_version
+
     parser.add_argument(
-        "--version", action="version", version=f"gfa2network {__version__}"
+        "--version",
+        action="version",
+        version=f"gfa2network {pkg_version}",
     )
     parser.add_argument(
         "--raw-bytes-id",
         action="store_true",
         help="Use raw bytes for node identifiers (legacy)",
+    )
+    parser.add_argument(
+        "--max-dense-gb",
+        type=float,
+        default=5.0,
+        help="Abort dense matrix saves over N GB (default 5)",
+    )
+    parser.add_argument(
+        "--max-tag-mb",
+        type=float,
+        default=100.0,
+        help="Warn when stored tags exceed N MB (default 100)",
     )
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -125,7 +144,9 @@ def main(argv: list[str] | None = None) -> None:
     )
     p_exp.add_argument("--output", help="Output path", default="-")
 
-    p_stats = sub.add_parser("stats", help="Print basic graph statistics")
+    p_stats = sub.add_parser(
+        "stats", help="Print basic graph statistics", aliases=["stat"]
+    )
     p_stats.add_argument("gfa", help="Input *.gfa* file or - for stdin")
     g2 = p_stats.add_mutually_exclusive_group()
     g2.add_argument("--directed", dest="directed", action="store_true", default=True)
@@ -180,6 +201,7 @@ def main(argv: list[str] | None = None) -> None:
             asymmetric=args.asymmetric,
             raw_bytes_id=args.raw_bytes_id,
             return_node_list=build_mat and not args.no_node_map,
+            max_tag_mb=args.max_tag_mb,
         )
         if build_g and build_mat:
             if build_mat and not args.no_node_map:
@@ -195,7 +217,15 @@ def main(argv: list[str] | None = None) -> None:
                 A = result  # type: ignore[assignment]
         if build_mat:
             A = convert_format(A, args.matrix_format, verbose=args.verbose)
-            save_matrix(A, Path(args.matrix), verbose=args.verbose)
+            try:
+                save_matrix(
+                    A,
+                    Path(args.matrix),
+                    verbose=args.verbose,
+                    max_dense_gb=args.max_dense_gb,
+                )
+            except MemoryError as exc:
+                raise SystemExit(str(exc)) from exc
             if not args.no_node_map:
                 save_node_map(nodes, Path(str(args.matrix) + ".nodes.tsv"))
         if build_g:
@@ -238,6 +268,7 @@ def main(argv: list[str] | None = None) -> None:
                 bidirected=args.bidirected,
                 keep_directed_bidir=args.keep_directed_bidir,
                 raw_bytes_id=args.raw_bytes_id,
+                max_tag_mb=args.max_tag_mb,
             )
             if parser_format == "graphml":
                 nx.write_graphml(G, args.output)
@@ -262,6 +293,7 @@ def main(argv: list[str] | None = None) -> None:
                 directed=args.directed,
                 store_seq=True,
                 raw_bytes_id=args.raw_bytes_id,
+                max_tag_mb=args.max_tag_mb,
             )
             dist = sequence_distance(G, seq_a, seq_b)
         else:
@@ -283,12 +315,22 @@ def main(argv: list[str] | None = None) -> None:
                 build_matrix=False,
                 directed=args.directed,
                 raw_bytes_id=args.raw_bytes_id,
+                max_tag_mb=args.max_tag_mb,
             )
             dist = genome_distance(G, nodes_a, nodes_b)
         print(dist)
     elif args.cmd == "distance-matrix":
-        M = genome_distance_matrix(args.gfa, method=args.method, raw_bytes_id=args.raw_bytes_id)
-        save_matrix(M, Path(args.output))
+        M = genome_distance_matrix(
+            args.gfa, method=args.method, raw_bytes_id=args.raw_bytes_id
+        )
+        try:
+            save_matrix(
+                M,
+                Path(args.output),
+                max_dense_gb=args.max_dense_gb,
+            )
+        except MemoryError as exc:
+            raise SystemExit(str(exc)) from exc
     elif args.cmd == "stats":
         stats = compute_stats(
             args.gfa,

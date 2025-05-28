@@ -145,7 +145,7 @@ See `gfa2network -h` for all command line options.
 | Option             | Purpose |
 | ------------------ | ------- |
 | `convert`          | Convert a GFA into graph and/or matrix |
-| `stats`            | Print basic statistics |
+| `stats` (`stat`)   | Print basic statistics |
 | `export`           | Stream edges in various formats |
 | `distance`         | Compute distances between sequences or paths |
 | `distance-matrix`  | Compute pairwise path distances |
@@ -165,12 +165,15 @@ See `gfa2network -h` for all command line options.
 | `--raw-bytes-id`   | Use legacy byte strings for node IDs |
 | `--keep-directed-bidir` | Keep directed bidirected edges |
 | `--verbose`        | Emit progress information |
+| `--max-dense-gb N` | Abort dense matrix saves over N GB |
+| `--max-tag-mb N`   | Warn when stored tags exceed N MB |
+| `--version`        | Print package version |
 
 `--store-seq` may drastically increase memory usage. The parser will warn when the
 stored sequences exceed half of the available RAM. The flag is ignored when only
 `--matrix` is requested. The `--store-tags` option adds tag dictionaries and
-segment lengths to the graph. A `RuntimeWarning` is emitted if more than
-100&nbsp;MB are used for stored tags.
+segment lengths to the graph. A `RuntimeWarning` is emitted when the stored tags
+exceed the threshold from `--max-tag-mb` (default 100&nbsp;MB).
 
 ## Using in Python
 
@@ -215,6 +218,18 @@ computes all pairwise distances between paths and returns a matrix or dataframe.
 The matrix is derived from a cached multi-source Dijkstra search for each path,
 so runtime grows roughly linearly with the number of paths.  ``--method mean``
 averages the node-to-path distances using the same cache.
+
+### Distance matrix
+
+``genome_distance_matrix`` reuses one multi-source Dijkstra search per path. The
+``mean`` method still performs ``|A| × |B|`` shortest path computations. A
+warning is emitted when more than 1000 node pairs are examined:
+
+```python
+>>> genome_distance(G, nodes_a, nodes_b, method="mean")
+RuntimeWarning: Mean distance scales quadratically; this may be very slow on large sets
+```
+Set ``GFANET_DISABLE_WARNINGS=1`` to silence this message.
 
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an
