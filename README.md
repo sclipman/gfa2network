@@ -105,8 +105,8 @@ This project targets Python 3.8 or later and depends on the following packages:
 
 ## Comparison to Other Tools
 
-`gfapy` focuses on full read/write support for all GFA fields while
-`vg` and `ODGI` provide highly optimised graph implementations with many
+[`gfapy`](https://github.com/ggonnella/gfapy) focuses on full read/write support for all GFA fields while
+[`vg`](https://github.com/vgteam/vg) and [`ODGI`](https://github.com/pangenome/odgi) provide highly optimised graph implementations with many
 algorithms built in.  **GFA2Network** is a lightweight parser whose niche is
 streaming conversion of GFA files into NetworkX graphs or sparse matrices with
 very small memory overhead.  Use it when you only need the basic connectivity in
