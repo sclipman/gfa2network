@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.9.0
+- Optimised `genome_distance_matrix` to reuse a cached multi-source Dijkstra per
+  path. Runtime now scales linearly with the number of paths and output is
+  unchanged.
+
 ## v0.8.0
 - Added `--store-tags` option to keep tag dictionaries and segment lengths on
   nodes and edges. A `RuntimeWarning` is issued when stored tags exceed
