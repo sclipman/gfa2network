@@ -14,16 +14,19 @@ SAMPLE_SEQ_GFA = b"""S\ts1\tACGT\nS\ts2\tTTTT\nL\ts1\t+\ts2\t+\t0M\n"""
 
 SAMPLE_PATH_GFA = b"""S\ts1\t*\nS\ts2\t*\nS\ts3\t*\nL\ts1\t+\ts2\t+\t0M\nL\ts2\t+\ts3\t+\t0M\nP\tp1\ts1+,s2+\t*\nP\tp2\ts3+,s2+\t*\n"""
 
+
 def write_gfa(tmp_path: Path, content: bytes, name: str) -> Path:
     gfa = tmp_path / name
     gfa.write_bytes(content)
     return gfa
+
 
 def test_sequence_distance(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_SEQ_GFA, "seq.gfa")
     G = parse_gfa(gfa, build_graph=True, build_matrix=False, store_seq=True)
     dist = sequence_distance(G, b"ACGT", b"TTTT")
     assert dist == 1
+
 
 def test_genome_distance(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "paths.gfa")
@@ -41,6 +44,7 @@ def test_genome_distance_matrix(tmp_path: Path):
     arr = M.values if hasattr(M, "values") else M
     assert arr.shape == (2, 2)
     assert np.allclose(arr, [[0, 0], [0, 0]])
+
 
 def test_cli_distance_seq(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_SEQ_GFA, "cli_seq.gfa")
@@ -60,6 +64,7 @@ def test_cli_distance_seq(tmp_path: Path):
         check=True,
     )
     assert result.stdout.strip() == "1"
+
 
 def test_cli_distance_path(tmp_path: Path):
     gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "cli_path.gfa")

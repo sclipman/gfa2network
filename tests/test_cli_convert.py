@@ -62,4 +62,3 @@ def test_convert_save_igraph(tmp_path: Path):
     G = ig.Graph.Read_Pickle(str(out))
     assert G.vcount() == 2
     assert G.ecount() == 1
-

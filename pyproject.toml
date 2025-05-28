@@ -21,3 +21,6 @@ tqdm = ["tqdm"]
 
 [project.scripts]
 gfa2network = "gfa2network.cli:main"
+
+[tool.black]
+line-length = 88

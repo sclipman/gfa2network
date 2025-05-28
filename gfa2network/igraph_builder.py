@@ -2,6 +2,7 @@ from __future__ import annotations
 
 try:
     import igraph as ig
+
     _HAS_IGRAPH = True
 except Exception:  # pragma: no cover - optional dependency
     ig = None  # type: ignore
@@ -9,6 +10,7 @@ except Exception:  # pragma: no cover - optional dependency
 
 try:
     import scipy.sparse as sp
+
     _HAS_SCIPY = True
 except Exception:  # pragma: no cover - optional dependency
     sp = None  # type: ignore
@@ -99,6 +101,7 @@ class IGraphBuilder:
 
 
 # ----------------------------------------------------------------------
+
 
 def parse_gfa_igraph(
     path: str | bytes,
