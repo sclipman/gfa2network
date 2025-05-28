@@ -44,6 +44,7 @@ def parse_gfa(
     dtype: str | object = "float64",
     asymmetric: bool = False,
     raw_bytes_id: bool = False,
+    return_node_list: bool = False,
 ):
     """Stream-parse *path* and return requested artefacts.
 
@@ -63,7 +64,10 @@ def parse_gfa(
             verbose=verbose,
             bidirected=bidirected,
             keep_directed_bidir=keep_directed_bidir,
+            return_node_list=return_node_list,
         )
+    if return_node_list and not build_matrix:
+        raise ValueError("return_node_list requires build_matrix=True")
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
     if store_seq and not build_graph:
@@ -210,15 +214,26 @@ def parse_gfa(
 
     out_graph = G
     out_mat = None
+    node_list = None
     if build_matrix:
         n = len(node2idx)
         dt = np.dtype(dtype)
         out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=dt)
         if not asymmetric and graph_directed:
             out_mat = out_mat.maximum(out_mat.T)
+        if return_node_list:
+            node_list = [None] * n
+            for node, idx in node2idx.items():
+                val = node if raw_bytes_id else node.decode()
+                node_list[idx] = val
 
     if build_graph and build_matrix:
+        if return_node_list:
+            return out_graph, out_mat, node_list
         return out_graph, out_mat
     if build_graph:
         return out_graph
-    return out_mat
+    if build_matrix:
+        if return_node_list:
+            return out_mat, node_list
+        return out_mat

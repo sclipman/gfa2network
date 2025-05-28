@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from typing import Sequence
 
 try:
     from tqdm.auto import tqdm
@@ -101,3 +102,12 @@ def save_matrix(A, dest: Path, *, verbose: bool = False):
         else:
             dt = time.perf_counter() - start
             print(f" done in {dt:,.1f}s", file=sys.stderr)
+
+
+def save_node_map(nodes: Sequence[bytes | str], dest: Path) -> None:
+    """Write node index mapping to *dest* as TSV."""
+    with open(dest, "w") as fh:
+        for i, node in enumerate(nodes):
+            if isinstance(node, (bytes, bytearray)):
+                node = node.decode()
+            fh.write(f"{i}\t{node}\n")

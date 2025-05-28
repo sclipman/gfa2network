@@ -8,7 +8,7 @@ import networkx as nx
 from .builders import parse_gfa
 from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
 from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
-from .utils import convert_format, save_matrix
+from .utils import convert_format, save_matrix, save_node_map
 from .analysis import (
     compute_stats,
     sequence_distance,
@@ -60,6 +60,12 @@ def main(argv: list[str] | None = None) -> None:
         help="Write adjacency matrix to PATH (.npz|.npy|.csv)",
     )
     p_conv.add_argument(
+        "--save-matrix",
+        dest="matrix",
+        metavar="PATH",
+        help=argparse.SUPPRESS,
+    )
+    p_conv.add_argument(
         "--matrix-format",
         default="csr",
         help="Sparse format for .npz (csr|csc|coo|dok)",
@@ -74,6 +80,11 @@ def main(argv: list[str] | None = None) -> None:
         "--asymmetric",
         action="store_true",
         help="Do not mirror upper triangle",
+    )
+    p_conv.add_argument(
+        "--no-node-map",
+        action="store_true",
+        help="Do not write <matrix>.nodes.tsv sidecar",
     )
     p_conv.add_argument("--weight-tag")
     p_conv.add_argument("--store-seq", action="store_true")
@@ -168,16 +179,25 @@ def main(argv: list[str] | None = None) -> None:
             dtype=args.dtype,
             asymmetric=args.asymmetric,
             raw_bytes_id=args.raw_bytes_id,
+            return_node_list=build_mat and not args.no_node_map,
         )
         if build_g and build_mat:
-            G, A = result  # type: ignore[misc]
+            if build_mat and not args.no_node_map:
+                G, A, nodes = result  # type: ignore[misc]
+            else:
+                G, A = result  # type: ignore[misc]
         elif build_g:
             G = result  # type: ignore[assignment]
         else:
-            A = result  # type: ignore[assignment]
+            if build_mat and not args.no_node_map:
+                A, nodes = result  # type: ignore[assignment]
+            else:
+                A = result  # type: ignore[assignment]
         if build_mat:
             A = convert_format(A, args.matrix_format, verbose=args.verbose)
             save_matrix(A, Path(args.matrix), verbose=args.verbose)
+            if not args.no_node_map:
+                save_node_map(nodes, Path(str(args.matrix) + ".nodes.tsv"))
         if build_g:
             globals().update({"G": G})
             if args.output:

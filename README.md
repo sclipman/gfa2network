@@ -152,6 +152,7 @@ See `gfa2network -h` for all command line options.
 | `--graph`          | Build a NetworkX object |
 | `--matrix PATH`    | Write adjacency matrix to PATH |
 | `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
+| `--no-node-map`    | Do not write `<matrix>.nodes.tsv` |
 | `-o PATH, --output PATH` | Save graph pickle to PATH |
 | `--backend`        | Backend for graph building (`networkx`\|`igraph`) |
 | `--directed`       | Treat graph as directed (default) |
@@ -256,6 +257,9 @@ NetworkX pickle or as an igraph pickle, depending on the backend).  If
 (`.npz`, `.npy` or `.csv`).  Matrices are initially produced in the COO format
 and may subsequently be converted to another sparse representation using the
 `convert_format` helper function.
+When a matrix is written, a sidecar file `<matrix>.nodes.tsv` lists the
+corresponding node identifier for each row/column index.  Use `--no-node-map`
+to suppress this file.
 
 ## License
 

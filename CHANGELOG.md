@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.10.0
+- Saving an adjacency matrix now writes `<outfile>.nodes.tsv` mapping row
+  indices to node identifiers.
+- Added `--no-node-map` option to suppress this sidecar file.
+
 ## v0.9.0
 - Optimised `genome_distance_matrix` to reuse a cached multi-source Dijkstra per
   path. Runtime now scales linearly with the number of paths and output is
