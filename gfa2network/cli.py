@@ -166,6 +166,13 @@ def main(argv: list[str] | None = None) -> None:
     g4 = p_dist.add_mutually_exclusive_group()
     g4.add_argument("--directed", dest="directed", action="store_true", default=True)
     g4.add_argument("--undirected", dest="directed", action="store_false")
+    p_dist.add_argument(
+        "--backend",
+        choices=["networkx", "igraph"],
+        default="networkx",
+        help="Graph backend to use",
+    )
+    p_dist.add_argument("--verbose", action="store_true")
 
     p_dm = sub.add_parser("distance-matrix", help="Pairwise distances between paths")
     p_dm.add_argument("gfa", help="Input *.gfa* file")
@@ -173,6 +180,13 @@ def main(argv: list[str] | None = None) -> None:
         "-o", "--output", required=True, help="Write matrix to PATH (.csv|.npy|.npz)"
     )
     p_dm.add_argument("--method", choices=["min", "mean"], default="min")
+    p_dm.add_argument(
+        "--backend",
+        choices=["networkx", "igraph"],
+        default="networkx",
+        help="Graph backend to use",
+    )
+    p_dm.add_argument("--verbose", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -301,6 +315,8 @@ def main(argv: list[str] | None = None) -> None:
                 store_seq=True,
                 raw_bytes_id=args.raw_bytes_id,
                 max_tag_mb=args.max_tag_mb,
+                backend=args.backend,
+                verbose=args.verbose,
             )
             dist = sequence_distance(G, seq_a, seq_b)
         else:
@@ -323,12 +339,18 @@ def main(argv: list[str] | None = None) -> None:
                 directed=args.directed,
                 raw_bytes_id=args.raw_bytes_id,
                 max_tag_mb=args.max_tag_mb,
+                backend=args.backend,
+                verbose=args.verbose,
             )
             dist = genome_distance(G, nodes_a, nodes_b)
         print(dist)
     elif args.cmd == "distance-matrix":
         M = genome_distance_matrix(
-            args.gfa, method=args.method, raw_bytes_id=args.raw_bytes_id
+            args.gfa,
+            method=args.method,
+            raw_bytes_id=args.raw_bytes_id,
+            backend=args.backend,
+            verbose=args.verbose,
         )
         try:
             save_matrix(
