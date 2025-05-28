@@ -106,3 +106,28 @@ def test_cli_distance_matrix(tmp_path: Path):
     arr = np.loadtxt(out, delimiter=",")
     assert arr.shape == (2, 2)
     assert np.allclose(arr, [[0, 0], [0, 0]])
+
+
+def test_cli_distance_matrix_verbose_backend(tmp_path: Path):
+    gfa = write_gfa(tmp_path, SAMPLE_PATH_GFA, "cli_matrix2.gfa")
+    out = tmp_path / "dist2.csv"
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gfa2network",
+            "distance-matrix",
+            str(gfa),
+            "-o",
+            str(out),
+            "--backend",
+            "networkx",
+            "--verbose",
+        ],
+        check=True,
+    )
+    import numpy as np
+
+    arr = np.loadtxt(out, delimiter=",")
+    assert arr.shape == (2, 2)
+    assert np.allclose(arr, [[0, 0], [0, 0]])

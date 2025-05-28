@@ -184,7 +184,7 @@ See `gfa2network -h` for all command line options.
 | `--matrix-format`  | Sparse format for `.npz`. One of `csr`, `csc`, `coo` or `dok` |
 | `--no-node-map`    | Do not write `<matrix>.nodes.tsv` |
 | `-o PATH, --output PATH` | Save graph pickle to PATH |
-| `--backend`        | Backend for graph building (`networkx`\|`igraph`) |
+| `--backend`        | Backend for graph building (`networkx`\|`igraph`, commands: `convert`, `distance`, `distance-matrix`) |
 | `--directed`       | Treat graph as directed (default) |
 | `--undirected`     | Treat graph as undirected |
 | `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
@@ -194,7 +194,7 @@ See `gfa2network -h` for all command line options.
 | `--bidirected`     | Use bidirected node representation |
 | `--raw-bytes-id`   | Use legacy byte strings for node IDs |
 | `--keep-directed-bidir` | Keep directed bidirected edges |
-| `--verbose`        | Emit progress information |
+| `--verbose`        | Emit progress information while parsing |
 | `--max-dense-gb N` | Abort dense matrix saves over N GB |
 | `--max-tag-mb N`   | Warn when stored tags exceed N MB |
 | `--version`        | Print package version |
@@ -288,10 +288,10 @@ matrix into CSR/CSC/DOK formats.
 The resulting graphs drop any absolute coordinates from the GFA file and
 encode only connectivity.  When ``--bidirected`` is used, segment
 identifiers are expanded to ``<id>:+`` and ``<id>:-`` so that each node
-represents a specific orientation.  Distances are always computed on the
+represents a specific orientation.  The distance utilities operate on the
 undirected topology and ignore coordinates.  If you build a directed
-bidirected graph (``--keep-directed-bidir``) you should convert it to an
-undirected graph via ``G = G.to_undirected()`` before calling the
+graph (for example with ``--keep-directed-bidir``), convert it to an
+undirected one via ``G = G.to_undirected()`` before calling the
 distance helpers.
 
 ## Implementation Notes

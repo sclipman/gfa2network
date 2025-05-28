@@ -178,7 +178,12 @@ def load_paths(
 
 
 def genome_distance_matrix(
-    gfa_path: str, method: str = "min", *, raw_bytes_id: bool = False
+    gfa_path: str,
+    method: str = "min",
+    *,
+    raw_bytes_id: bool = False,
+    backend: str = "networkx",
+    verbose: bool = False,
 ):
     """Return pairwise distances between all paths in *gfa_path*.
 
@@ -192,6 +197,10 @@ def genome_distance_matrix(
     method : str, optional
         Distance aggregation method (``"min"`` or ``"mean"``), by default
         ``"min"``.
+    backend : str, optional
+        ``"networkx"`` (default) or ``"igraph"``.
+    verbose : bool, optional
+        Emit progress information while parsing.
 
     Returns
     -------
@@ -209,7 +218,12 @@ def genome_distance_matrix(
     names = list(paths)
 
     G = parse_gfa(
-        gfa_path, build_graph=True, build_matrix=False, raw_bytes_id=raw_bytes_id
+        gfa_path,
+        build_graph=True,
+        build_matrix=False,
+        raw_bytes_id=raw_bytes_id,
+        backend=backend,
+        verbose=verbose,
     )
     _warn_directed_bidirected(G)
 
