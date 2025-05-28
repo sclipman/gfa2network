@@ -47,6 +47,11 @@ class EdgeRecord:
     to_segment: bytes
     orientation_from: str
     orientation_to: str
+    from_start: int | None = None
+    from_end: int | None = None
+    to_start: int | None = None
+    to_end: int | None = None
+    cigar: bytes | None = None
     tags: dict[str, Any] | None = None
 
 
@@ -58,6 +63,11 @@ class ContainmentRecord:
     to_segment: bytes
     orientation_from: str
     orientation_to: str
+    from_start: int | None = None
+    from_end: int | None = None
+    to_start: int | None = None
+    to_end: int | None = None
+    cigar: bytes | None = None
     tags: dict[str, Any] | None = None
 
 
@@ -240,23 +250,95 @@ class GFAParser:
     def _parse_edge(fields: list[bytes]) -> EdgeRecord:
         if len(fields) < 6:
             raise ValueError("Malformed E record")
+        # GFA2 format with coordinates and embedded orientation
+        if len(fields) >= 9:
+            try:
+                int(fields[3])
+                int(fields[4])
+                int(fields[6])
+                int(fields[7])
+            except ValueError:
+                pass
+            else:
+                u_field = fields[2]
+                v_field = fields[5]
+                ori_from = "-" if u_field.endswith(b"-") else "+"
+                ori_to = "-" if v_field.endswith(b"-") else "+"
+                u = u_field.rstrip(b"+-")
+                v = v_field.rstrip(b"+-")
+                from_start = int(fields[3])
+                from_end = int(fields[4])
+                to_start = int(fields[6])
+                to_end = int(fields[7])
+                cigar = fields[8]
+                tags = (
+                    GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
+                )
+                return EdgeRecord(
+                    u,
+                    v,
+                    ori_from,
+                    ori_to,
+                    from_start,
+                    from_end,
+                    to_start,
+                    to_end,
+                    cigar,
+                    tags,
+                )
+        # Fallback orientation-only edge
         u = fields[2]
         ori_from = fields[3].decode()
         v = fields[4]
         ori_to = fields[5].decode()
         tags = GFAParser._parse_tags(fields[6:]) if len(fields) > 6 else None
-        return EdgeRecord(u, v, ori_from, ori_to, tags)
+        return EdgeRecord(u, v, ori_from, ori_to, None, None, None, None, None, tags)
 
     @staticmethod
     def _parse_containment(fields: list[bytes]) -> ContainmentRecord:
         if len(fields) < 5:
             raise ValueError("Malformed C record")
+        if len(fields) >= 9:
+            try:
+                int(fields[3])
+                int(fields[4])
+                int(fields[6])
+                int(fields[7])
+            except ValueError:
+                pass
+            else:
+                u_field = fields[2]
+                v_field = fields[5]
+                ori_from = "-" if u_field.endswith(b"-") else "+"
+                ori_to = "-" if v_field.endswith(b"-") else "+"
+                u = u_field.rstrip(b"+-")
+                v = v_field.rstrip(b"+-")
+                from_start = int(fields[3])
+                from_end = int(fields[4])
+                to_start = int(fields[6])
+                to_end = int(fields[7])
+                cigar = fields[8]
+                tags = (
+                    GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
+                )
+                return ContainmentRecord(
+                    u,
+                    v,
+                    ori_from,
+                    ori_to,
+                    from_start,
+                    from_end,
+                    to_start,
+                    to_end,
+                    cigar,
+                    tags,
+                )
         u = fields[1]
         ori_from = fields[2].decode()
         v = fields[3]
         ori_to = fields[4].decode()
         tags = GFAParser._parse_tags(fields[5:]) if len(fields) > 5 else None
-        return ContainmentRecord(u, v, ori_from, ori_to, tags)
+        return ContainmentRecord(u, v, ori_from, ori_to, None, None, None, None, None, tags)
 
     @staticmethod
     def _parse_walk(fields: list[bytes]) -> WalkRecord:
