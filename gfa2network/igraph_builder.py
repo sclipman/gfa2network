@@ -28,6 +28,7 @@ class IGraphBuilder:
         directed: bool = True,
         weight_tag: str | None = None,
         store_seq: bool = False,
+        store_tags: bool = False,
         strip_orientation: bool = False,
         bidirected: bool = False,
         keep_directed_bidir: bool = False,
@@ -38,6 +39,7 @@ class IGraphBuilder:
             self.directed = directed
         self.weight_tag = weight_tag
         self.store_seq = store_seq
+        self.store_tags = store_tags
         self.strip_orientation = strip_orientation
         self.bidirected = bidirected
         self.keep_directed_bidir = keep_directed_bidir
@@ -53,11 +55,11 @@ class IGraphBuilder:
             idx = self.graph.vcount() - 1  # type: ignore[union-attr]
             self._node_index[node] = idx
             if seg is not None:
-                if seg.length is not None:
+                if self.store_tags and seg.length is not None:
                     self.graph.vs[idx]["length"] = seg.length  # type: ignore[union-attr]
                 if self.store_seq and seg.sequence is not None:
                     self.graph.vs[idx]["sequence"] = seg.sequence  # type: ignore[union-attr]
-                if seg.tags:
+                if self.store_tags and seg.tags:
                     self.graph.vs[idx]["tags"] = seg.tags  # type: ignore[union-attr]
         return idx
 
@@ -86,7 +88,7 @@ class IGraphBuilder:
         if not self.strip_orientation and not self.bidirected:
             attrs["orientation_from"] = rec.orientation_from
             attrs["orientation_to"] = rec.orientation_to
-        if rec.tags is not None:
+        if self.store_tags and rec.tags is not None:
             attrs["tags"] = rec.tags
         w = None
         if self.weight_tag and rec.tags and self.weight_tag in rec.tags:
@@ -124,6 +126,7 @@ def parse_gfa_igraph(
     directed: bool = True,
     weight_tag: str | None = None,
     store_seq: bool = False,
+    store_tags: bool = False,
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
@@ -139,6 +142,7 @@ def parse_gfa_igraph(
         directed=directed,
         weight_tag=weight_tag,
         store_seq=store_seq,
+        store_tags=store_tags,
         strip_orientation=strip_orientation,
         bidirected=bidirected,
         keep_directed_bidir=keep_directed_bidir,

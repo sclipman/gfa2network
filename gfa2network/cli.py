@@ -77,6 +77,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     p_conv.add_argument("--weight-tag")
     p_conv.add_argument("--store-seq", action="store_true")
+    p_conv.add_argument("--store-tags", action="store_true")
     p_conv.add_argument(
         "--strip-orientation",
         action="store_true",
@@ -158,6 +159,7 @@ def main(argv: list[str] | None = None) -> None:
             directed=args.directed,
             weight_tag=args.weight_tag,
             store_seq=args.store_seq,
+            store_tags=args.store_tags,
             strip_orientation=args.strip_orientation,
             verbose=args.verbose,
             bidirected=args.bidirected,

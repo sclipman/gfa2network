@@ -158,6 +158,7 @@ See `gfa2network -h` for all command line options.
 | `--undirected`     | Treat graph as undirected |
 | `--weight-tag TAG` | Use numeric value of GFA tag `TAG` as edge weight |
 | `--store-seq`      | Keep sequences from `S` records on nodes |
+| `--store-tags`     | Attach tag dictionaries and lengths |
 | `--strip-orientation` | Remove `+/-` from IDs (legacy) |
 | `--bidirected`     | Use bidirected node representation |
 | `--raw-bytes-id`   | Use legacy byte strings for node IDs |
@@ -166,7 +167,9 @@ See `gfa2network -h` for all command line options.
 
 `--store-seq` may drastically increase memory usage. The parser will warn when the
 stored sequences exceed half of the available RAM. The flag is ignored when only
-`--matrix` is requested.
+`--matrix` is requested. The `--store-tags` option adds tag dictionaries and
+segment lengths to the graph. A `RuntimeWarning` is emitted if more than
+100&nbsp;MB are used for stored tags.
 
 ## Using in Python
 
@@ -182,6 +185,8 @@ G = parse_gfa("input.gfa", build_graph=True, build_matrix=False)
 Gz = parse_gfa("input.gfa.gz", build_graph=True, build_matrix=False)
 # Store sequences on nodes
 G_seq = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_seq=True)
+# Store tags and segment lengths
+G_tags = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_tags=True)
 ```
 
 Additional helpers are provided in ``gfa2network.analysis``:
@@ -223,6 +228,7 @@ matrix into CSR/CSC/DOK formats.
 | ``directed`` | Treat graph as directed (default ``True``) |
 | ``weight_tag`` | Numeric GFA tag to use as edge weight |
 | ``store_seq`` | Attach sequences to nodes |
+| ``store_tags`` | Attach tag dictionaries and lengths |
 | ``strip_orientation`` | Remove ``+/-`` from segment IDs |
 | ``verbose`` | Print progress messages |
 | ``bidirected`` | Append orientation to node IDs |
