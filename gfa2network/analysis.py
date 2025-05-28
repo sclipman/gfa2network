@@ -121,19 +121,25 @@ def genome_distance(
         raise ValueError(f"unknown method: {method}")
 
 
-def load_paths(path: str, *, raw_bytes: bool = False) -> dict[str | bytes, list[str | bytes]]:
+def load_paths(
+    path: str, *, raw_bytes: bool = False
+) -> dict[str | bytes, list[str | bytes]]:
     """Return mapping of path/walk names to their node lists."""
 
     paths: dict[str | bytes, list[str | bytes]] = {}
     for rec in GFAParser(path):
         if isinstance(rec, (PathRecord, WalkRecord)):
             key = rec.name if raw_bytes else rec.name.decode("ascii")
-            segs = [seg if raw_bytes else seg.decode("ascii") for seg, _ in rec.segments]
+            segs = [
+                seg if raw_bytes else seg.decode("ascii") for seg, _ in rec.segments
+            ]
             paths[key] = segs
     return paths
 
 
-def genome_distance_matrix(gfa_path: str, method: str = "min", *, raw_bytes_id: bool = False):
+def genome_distance_matrix(
+    gfa_path: str, method: str = "min", *, raw_bytes_id: bool = False
+):
     """Return pairwise distances between all paths in *gfa_path*.
 
     The function loads path definitions, builds the graph and computes
@@ -157,23 +163,45 @@ def genome_distance_matrix(gfa_path: str, method: str = "min", *, raw_bytes_id: 
     paths = load_paths(gfa_path, raw_bytes=raw_bytes_id)
     names = list(paths)
 
-    G = parse_gfa(gfa_path, build_graph=True, build_matrix=False, raw_bytes_id=raw_bytes_id)
+    G = parse_gfa(
+        gfa_path, build_graph=True, build_matrix=False, raw_bytes_id=raw_bytes_id
+    )
 
     import numpy as np
 
     n = len(names)
     M = np.zeros((n, n), dtype=float)
 
+    # cache one multi-source Dijkstra per path
+    cache = {
+        name: nx.multi_source_dijkstra_path_length(G, nodes, weight="weight")
+        for name, nodes in paths.items()
+    }
+
     for i, name_a in enumerate(names):
         nodes_a = paths[name_a]
+        lengths_a = cache[name_a]
         for j in range(i, n):
             if i == j:
                 dist = 0.0
             else:
-                try:
-                    dist = genome_distance(G, nodes_a, paths[names[j]], method=method)
-                except nx.NetworkXNoPath:
-                    dist = float("inf")
+                nodes_b = paths[names[j]]
+                lengths_b = cache[names[j]]
+                if method == "min":
+                    dists = [lengths_a[n] for n in nodes_b if n in lengths_a]
+                    dist = min(dists) if dists else float("inf")
+                else:  # mean of node-to-path distances
+                    total = 0.0
+                    count = 0
+                    for u in nodes_a:
+                        if u in lengths_b:
+                            total += lengths_b[u]
+                            count += 1
+                    for v in nodes_b:
+                        if v in lengths_a:
+                            total += lengths_a[v]
+                            count += 1
+                    dist = total / count if count else float("inf")
             M[i, j] = dist
             M[j, i] = dist
 

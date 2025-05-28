@@ -211,6 +211,9 @@ sets and calculates either the minimal or mean distance (``method="min"`` or
 ``"mean"``).  The helper ``load_paths`` reads ``P`` or ``O`` records from a GFA
 file and maps path names to node lists for convenient lookup. ``genome_distance_matrix``
 computes all pairwise distances between paths and returns a matrix or dataframe.
+The matrix is derived from a cached multi-source Dijkstra search for each path,
+so runtime grows roughly linearly with the number of paths.  ``--method mean``
+averages the node-to-path distances using the same cache.
 
 Pass `store_seq=True` to attach the sequences from `S` records as the
 `sequence` attribute on each node.  You can also set `directed=False` for an
