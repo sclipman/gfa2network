@@ -80,6 +80,11 @@ def main(argv: list[str] | None = None) -> None:
     p_conv.add_argument(
         "--bidirected", action="store_true", help="Use bidirected representation"
     )
+    p_conv.add_argument(
+        "--keep-directed-bidir",
+        action="store_true",
+        help="Keep original directed bidirected behaviour",
+    )
     p_conv.add_argument("--verbose", action="store_true")
     p_conv.add_argument(
         "-o",
@@ -96,6 +101,11 @@ def main(argv: list[str] | None = None) -> None:
         choices=["edge-list", "graphml", "gexf", "json"],
     )
     p_exp.add_argument("--bidirected", action="store_true")
+    p_exp.add_argument(
+        "--keep-directed-bidir",
+        action="store_true",
+        help="Keep original directed bidirected behaviour",
+    )
     p_exp.add_argument("--output", help="Output path", default="-")
 
     p_stats = sub.add_parser("stats", help="Print basic graph statistics")
@@ -146,6 +156,7 @@ def main(argv: list[str] | None = None) -> None:
             strip_orientation=args.strip_orientation,
             verbose=args.verbose,
             bidirected=args.bidirected,
+            keep_directed_bidir=args.keep_directed_bidir,
             backend=args.backend,
             dtype=args.dtype,
             asymmetric=args.asymmetric,
@@ -197,6 +208,7 @@ def main(argv: list[str] | None = None) -> None:
                 directed=True,
                 strip_orientation=False,
                 bidirected=args.bidirected,
+                keep_directed_bidir=args.keep_directed_bidir,
             )
             if parser_format == "graphml":
                 nx.write_graphml(G, args.output)

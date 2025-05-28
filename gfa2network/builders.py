@@ -36,6 +36,7 @@ def parse_gfa(
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
+    keep_directed_bidir: bool = False,
     backend: str = "networkx",
     dtype: str | object = "float64",
     asymmetric: bool = False,
@@ -56,19 +57,19 @@ def parse_gfa(
             strip_orientation=strip_orientation,
             verbose=verbose,
             bidirected=bidirected,
+            keep_directed_bidir=keep_directed_bidir,
         )
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
     if store_seq and not build_graph:
         store_seq = False
 
-    if bidirected and not directed:
-        raise ValueError("--bidirected incompatible with --undirected")
     if bidirected:
-        graph_cls = nx.MultiDiGraph
+        graph_cls = nx.MultiDiGraph if keep_directed_bidir else nx.MultiGraph
     else:
         graph_cls = nx.DiGraph if directed else nx.Graph
     G = graph_cls() if build_graph else None
+    graph_directed = keep_directed_bidir or (not bidirected and directed)
 
     node2idx: dict[bytes, int] = {}
     rows: list[int] = []
@@ -121,12 +122,24 @@ def parse_gfa(
                 u_node = u
                 v_node = v
             if build_matrix:
-                for n in (u_node, v_node):
-                    if n not in node2idx:
-                        node2idx[n] = len(node2idx)
-                rows.append(node2idx[u_node])
-                cols.append(node2idx[v_node])
-                data.append(1.0 if w is None else w)
+
+                def add_mat_edge(a: bytes, b: bytes) -> None:
+                    for n in (a, b):
+                        if n not in node2idx:
+                            node2idx[n] = len(node2idx)
+                    rows.append(node2idx[a])
+                    cols.append(node2idx[b])
+                    data.append(1.0 if w is None else w)
+                    if not graph_directed:
+                        rows.append(node2idx[b])
+                        cols.append(node2idx[a])
+                        data.append(1.0 if w is None else w)
+
+                add_mat_edge(u_node, v_node)
+                if bidirected and not keep_directed_bidir:
+                    rev_from = b"-" if record.orientation_from == "+" else b"+"
+                    rev_to = b"-" if record.orientation_to == "+" else b"+"
+                    add_mat_edge(v + b":" + rev_to, u + b":" + rev_from)
             if build_graph:
                 attrs = {}
                 if not strip_orientation and not bidirected:
@@ -134,10 +147,18 @@ def parse_gfa(
                         "orientation_from": record.orientation_from,
                         "orientation_to": record.orientation_to,
                     }
-                if w is None:
-                    G.add_edge(u_node, v_node, **attrs)
-                else:
-                    G.add_edge(u_node, v_node, weight=w, **attrs)
+
+                def add_graph_edge(a: bytes, b: bytes) -> None:
+                    if w is None:
+                        G.add_edge(a, b, **attrs)
+                    else:
+                        G.add_edge(a, b, weight=w, **attrs)
+
+                add_graph_edge(u_node, v_node)
+                if bidirected and not keep_directed_bidir:
+                    rev_from = b"-" if record.orientation_from == "+" else b"+"
+                    rev_to = b"-" if record.orientation_to == "+" else b"+"
+                    add_graph_edge(v + b":" + rev_to, u + b":" + rev_from)
         if verbose and lineno % 500_000 == 0:
             print(f"\r[{lineno:,} lines]", end="", file=sys.stderr)
 
@@ -157,7 +178,7 @@ def parse_gfa(
         n = len(node2idx)
         dt = np.dtype(dtype)
         out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=dt)
-        if not asymmetric:
+        if not asymmetric and graph_directed:
             out_mat = out_mat.maximum(out_mat.T)
 
     if build_graph and build_matrix:
