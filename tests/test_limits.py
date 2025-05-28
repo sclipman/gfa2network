@@ -28,3 +28,19 @@ def test_dense_matrix_limit(tmp_path: Path):
             "0.001",
         ])
 
+
+def test_dense_matrix_limit_respects_dtype(tmp_path: Path):
+    gfa = write_gfa(tmp_path, 400)
+    out = tmp_path / "dense.npy"
+    main([
+        "--max-dense-gb",
+        "0.001",
+        "convert",
+        str(gfa),
+        "--matrix",
+        str(out),
+        "--dtype",
+        "float32",
+    ])
+    assert out.exists()
+

@@ -358,6 +358,8 @@ def _parse_gfa_split(
             mapping[(seg_id, a, b)] = nid
             records.append(Segment(nid, b - a, None, None))
             intervals.append((a, b, nid))
+        if len(intervals) == 1 and seg.length is not None:
+            mapping[(seg_id, None, None)] = intervals[0][2]
         for (a1, b1, id1), (a2, b2, id2) in zip(intervals[:-1], intervals[1:]):
             records.append(Link(id1, id2, "+", "+", None, None))
 
@@ -365,8 +367,18 @@ def _parse_gfa_split(
         warnings.warn("split-on-alignment created >10x more nodes", RuntimeWarning)
 
     for rec in edges:
-        u = mapping[(rec.from_segment, rec.from_start, rec.from_end)]
-        v = mapping[(rec.to_segment, rec.to_start, rec.to_end)]
+        key_u = (rec.from_segment, rec.from_start, rec.from_end)
+        key_v = (rec.to_segment, rec.to_start, rec.to_end)
+        try:
+            u = mapping[key_u]
+            v = mapping[key_v]
+        except KeyError:
+            missing_seg = rec.from_segment if key_u not in mapping else rec.to_segment
+            warnings.warn(
+                f"skipping edge with undefined coordinates on segment {missing_seg.decode()}",
+                RuntimeWarning,
+            )
+            continue
         records.append(
             EdgeRecord(
                 u,

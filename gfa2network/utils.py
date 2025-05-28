@@ -70,9 +70,10 @@ def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5
     MAX_DENSE_BYTES = max_dense_gb * 1_000_000_000
     if dest.suffix in {".csv", ".npy"}:
         nnz = A.nnz if sp.issparse(A) else A.size
-        if nnz * 8 > MAX_DENSE_BYTES:
+        itemsize = A.dtype.itemsize if hasattr(A, "dtype") else 8
+        if nnz * itemsize > MAX_DENSE_BYTES:
             raise MemoryError(
-                f"dense export would allocate {nnz*8/1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
+                f"dense export would allocate {nnz*itemsize/1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
             )
     if verbose:
         msg = f"[save] {dest.suffix[1:]} → {dest}"

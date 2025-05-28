@@ -46,7 +46,11 @@ def compute_stats(
         strip_orientation=strip_orientation,
         raw_bytes_id=raw_bytes_id,
     )
-    path_count = sum(1 for rec in GFAParser(path) if isinstance(rec, PathRecord))
+    path_count = sum(
+        1
+        for rec in GFAParser(path)
+        if isinstance(rec, (PathRecord, WalkRecord))
+    )
     components = nx.number_connected_components(G.to_undirected())
     degrees = dict(G.degree())
     max_degree = max(degrees.values()) if degrees else 0
@@ -89,19 +93,24 @@ def sequence_distance(G: nx.Graph, seq_a: str | bytes, seq_b: str | bytes) -> fl
     s1 = _to_bytes(seq_a)
     s2 = _to_bytes(seq_b)
 
-    seq2node: dict[bytes, bytes] = {}
+    seq2nodes: dict[bytes, list[bytes]] = {}
     for node, data in G.nodes(data=True):
         seq = data.get("sequence")
         if isinstance(seq, (bytes, bytearray)):
-            seq2node[bytes(seq)] = node
+            key = bytes(seq)
+            seq2nodes.setdefault(key, []).append(node)
 
-    if s1 not in seq2node or s2 not in seq2node:
-        missing = [repr(x) for x in (seq_a, seq_b) if _to_bytes(x) not in seq2node]
+    if s1 not in seq2nodes or s2 not in seq2nodes:
+        missing = [repr(x) for x in (seq_a, seq_b) if _to_bytes(x) not in seq2nodes]
         raise KeyError(f"sequence(s) {', '.join(missing)} not found")
 
-    u = seq2node[s1]
-    v = seq2node[s2]
-    return nx.shortest_path_length(G, u, v, weight="weight")
+    nodes_a = seq2nodes[s1]
+    nodes_b = seq2nodes[s2]
+    lengths = nx.multi_source_dijkstra_path_length(G, nodes_a, weight="weight")
+    dists = [lengths[n] for n in nodes_b if n in lengths]
+    if not dists:
+        raise nx.NetworkXNoPath("no path between sequences")
+    return min(dists)
 
 
 def genome_distance(
