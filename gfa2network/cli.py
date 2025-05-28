@@ -59,6 +59,17 @@ def main(argv: list[str] | None = None) -> None:
         default="csr",
         help="Sparse format for .npz (csr|csc|coo|dok)",
     )
+    p_conv.add_argument(
+        "--dtype",
+        choices=["bool", "int8", "int32", "float32", "float64"],
+        default="float64",
+        help="Data type for adjacency matrix",
+    )
+    p_conv.add_argument(
+        "--asymmetric",
+        action="store_true",
+        help="Do not mirror upper triangle",
+    )
     p_conv.add_argument("--weight-tag")
     p_conv.add_argument("--store-seq", action="store_true")
     p_conv.add_argument(
@@ -136,6 +147,8 @@ def main(argv: list[str] | None = None) -> None:
             verbose=args.verbose,
             bidirected=args.bidirected,
             backend=args.backend,
+            dtype=args.dtype,
+            asymmetric=args.asymmetric,
         )
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]

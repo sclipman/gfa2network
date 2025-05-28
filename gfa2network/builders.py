@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import networkx as nx
+import numpy as np
 import sys
 
 from .parser import (
@@ -36,6 +37,8 @@ def parse_gfa(
     verbose: bool = False,
     bidirected: bool = False,
     backend: str = "networkx",
+    dtype: str | object = "float64",
+    asymmetric: bool = False,
 ):
     """Stream-parse *path* and return requested artefacts.
 
@@ -152,7 +155,10 @@ def parse_gfa(
     out_mat = None
     if build_matrix:
         n = len(node2idx)
-        out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=float)
+        dt = np.dtype(dtype)
+        out_mat = sp.coo_matrix((data, (rows, cols)), shape=(n, n), dtype=dt)
+        if not asymmetric:
+            out_mat = out_mat.maximum(out_mat.T)
 
     if build_graph and build_matrix:
         return out_graph, out_mat
