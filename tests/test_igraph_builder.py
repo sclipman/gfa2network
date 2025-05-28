@@ -16,15 +16,15 @@ def write_gfa(tmp_path: Path) -> Path:
 
 def test_directed_flag(tmp_path: Path):
     gfa = write_gfa(tmp_path)
-    G = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False)
+    G = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False, store_tags=True)
     assert G.is_directed()
-    G2 = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False, directed=False)
+    G2 = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False, directed=False, store_tags=True)
     assert not G2.is_directed()
 
 
 def test_vertex_edge_attributes(tmp_path: Path):
     gfa = write_gfa(tmp_path)
-    G = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False, weight_tag="RC")
+    G = parse_gfa_igraph(gfa, build_graph=True, build_matrix=False, weight_tag="RC", store_tags=True)
     assert G.vcount() == 2
     assert G.ecount() == 1
     v = G.vs.find(name="s1")

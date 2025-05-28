@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.8.0
+- Added `--store-tags` option to keep tag dictionaries and segment lengths on
+  nodes and edges. A `RuntimeWarning` is issued when stored tags exceed
+  100&nbsp;MB.
+
 ## v0.7.0
 - Node identifiers are now decoded to strings when building NetworkX graphs.
 - Added `--raw-bytes-id` CLI flag for legacy byte behaviour.

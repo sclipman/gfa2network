@@ -5,6 +5,8 @@ from pathlib import Path
 import networkx as nx
 import numpy as np
 import sys
+import warnings
+import pickle
 
 from .parser import (
     GFAParser,
@@ -33,6 +35,7 @@ def parse_gfa(
     directed: bool = True,
     weight_tag: str | None = None,
     store_seq: bool = False,
+    store_tags: bool = False,
     strip_orientation: bool = False,
     verbose: bool = False,
     bidirected: bool = False,
@@ -55,6 +58,7 @@ def parse_gfa(
             directed=directed,
             weight_tag=weight_tag,
             store_seq=store_seq,
+            store_tags=store_tags,
             strip_orientation=strip_orientation,
             verbose=verbose,
             bidirected=bidirected,
@@ -64,6 +68,8 @@ def parse_gfa(
         raise RuntimeError("Matrix output requires SciPy")
     if store_seq and not build_graph:
         store_seq = False
+    if store_tags and not build_graph:
+        store_tags = False
 
     if bidirected:
         graph_cls = nx.MultiDiGraph if keep_directed_bidir else nx.MultiGraph
@@ -77,6 +83,7 @@ def parse_gfa(
     cols: list[int] = []
     data: list[float] = []
     seq_bytes_total = 0
+    tags_bytes_total = 0
 
     parser = GFAParser(path)
     node_str: dict[bytes, str] = {}
@@ -96,16 +103,26 @@ def parse_gfa(
                 if bidirected:
                     for ori in ("+", "-"):
                         node = seg + b":" + ori.encode()
+                        attrs = {}
                         if store_seq and record.sequence is not None:
-                            G.add_node(_id(node), sequence=record.sequence)
-                        else:
-                            G.add_node(_id(node))
+                            attrs["sequence"] = record.sequence
+                        if store_tags and record.length is not None:
+                            attrs["length"] = record.length
+                        if store_tags and record.tags is not None:
+                            attrs["tags"] = record.tags
+                            tags_bytes_total += len(pickle.dumps(record.tags))
+                        G.add_node(_id(node), **attrs)
                 else:
+                    attrs = {}
                     if store_seq and record.sequence is not None:
-                        G.add_node(_id(seg), sequence=record.sequence)
+                        attrs["sequence"] = record.sequence
                         seq_bytes_total += len(record.sequence)
-                    else:
-                        G.add_node(_id(seg))
+                    if store_tags and record.length is not None:
+                        attrs["length"] = record.length
+                    if store_tags and record.tags is not None:
+                        attrs["tags"] = record.tags
+                        tags_bytes_total += len(pickle.dumps(record.tags))
+                    G.add_node(_id(seg), **attrs)
             if build_matrix:
                 if bidirected:
                     for ori in ("+", "-"):
@@ -158,6 +175,9 @@ def parse_gfa(
                         "orientation_from": record.orientation_from,
                         "orientation_to": record.orientation_to,
                     }
+                if store_tags and record.tags is not None:
+                    attrs["tags"] = record.tags
+                    tags_bytes_total += len(pickle.dumps(record.tags))
 
                 def add_graph_edge(a: bytes, b: bytes) -> None:
                     if w is None:
@@ -182,6 +202,11 @@ def parse_gfa(
                 print(
                     f"[warning] stored sequences use {extra_gb:.1f} GB (>50% of available memory)",
                 )
+    if store_tags and build_graph and tags_bytes_total > 100_000_000:
+        warnings.warn(
+            f"stored tag dictionaries use {tags_bytes_total/1e6:.1f} MB",
+            RuntimeWarning,
+        )
 
     out_graph = G
     out_mat = None
