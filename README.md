@@ -238,6 +238,17 @@ matrix into CSR/CSC/DOK formats.
 | ``bidirected`` | Append orientation to node IDs |
 | ``raw_bytes_id`` | Use byte strings for node IDs |
 
+## Graph Interpretation
+
+The resulting graphs drop any absolute coordinates from the GFA file and
+encode only connectivity.  When ``--bidirected`` is used, segment
+identifiers are expanded to ``<id>:+`` and ``<id>:-`` so that each node
+represents a specific orientation.  Distances are always computed on the
+undirected topology and ignore coordinates.  If you build a directed
+bidirected graph (``--keep-directed-bidir``) you should convert it to an
+undirected graph via ``G = G.to_undirected()`` before calling the
+distance helpers.
+
 ## Implementation Notes
 
 The parser recognises segment (`S`), link (`L`), edge (`E`), containment (`C`)

@@ -46,10 +46,47 @@ def parse_gfa(
     raw_bytes_id: bool = False,
     return_node_list: bool = False,
 ):
-    """Stream-parse *path* and return requested artefacts.
+    """Stream-parse *path* and return the requested artefacts.
 
-    Set ``backend="igraph"`` to build an igraph representation instead of a
-    NetworkX graph.
+    Parameters
+    ----------
+    path : str | Path
+        Input GFA file (``-`` for ``stdin``).
+    build_graph : bool
+        Return a NetworkX/igraph graph.
+    build_matrix : bool
+        Return a SciPy sparse adjacency matrix.
+    directed : bool, optional
+        Treat the graph as directed, by default ``True``.
+    weight_tag : str | None, optional
+        Numeric GFA tag to use as edge weight.
+    store_seq : bool, optional
+        Attach sequences from ``S`` records to nodes.
+    store_tags : bool, optional
+        Keep tag dictionaries and segment lengths.
+    strip_orientation : bool, optional
+        Remove ``+/-`` from segment identifiers.
+    verbose : bool, optional
+        Emit progress information.
+    bidirected : bool, optional
+        Duplicate nodes as ``<id>:+`` and ``<id>:-``.
+    keep_directed_bidir : bool, optional
+        Keep directed edges when ``bidirected`` is ``True``.
+    backend : str, optional
+        ``"networkx"`` (default) or ``"igraph"``.
+    dtype : str | object, optional
+        Data type for the adjacency matrix.
+    asymmetric : bool, optional
+        Do not mirror the upper triangle when directed.
+    raw_bytes_id : bool, optional
+        Use raw byte strings for node identifiers.
+    return_node_list : bool, optional
+        Return a node list alongside the matrix.
+
+    Notes
+    -----
+    When the bidirected representation is kept directed, distances should be
+    computed on ``G.to_undirected()`` as orientation is ignored.
     """
     if backend == "igraph":
         return parse_gfa_igraph(

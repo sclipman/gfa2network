@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import networkx as nx
+import warnings
 
 try:
     import pandas as pd  # type: ignore
@@ -12,6 +13,20 @@ except Exception:  # pragma: no cover - optional dependency
 
 from .builders import parse_gfa
 from .parser import GFAParser, PathRecord, WalkRecord
+
+
+def _warn_directed_bidirected(G: nx.Graph) -> None:
+    """Issue a warning if *G* is a directed bidirected graph."""
+    if G.is_directed():
+        for n in G.nodes:
+            s = n.decode() if isinstance(n, (bytes, bytearray)) else str(n)
+            if s.endswith(":+") or s.endswith(":-"):
+                warnings.warn(
+                    "distance functions ignore orientation; use G.to_undirected()",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                break
 
 
 def compute_stats(
@@ -48,6 +63,10 @@ def compute_stats(
 def sequence_distance(G: nx.Graph, seq_a: str | bytes, seq_b: str | bytes) -> float:
     """Return the shortest path length between two sequences.
 
+    Orientation information is ignored.  If ``G`` was built using the
+    bidirected representation, convert it to an undirected graph with
+    ``G.to_undirected()`` before calling this function.
+
     Parameters
     ----------
     G : nx.Graph
@@ -60,6 +79,8 @@ def sequence_distance(G: nx.Graph, seq_a: str | bytes, seq_b: str | bytes) -> fl
     KeyError
         If either sequence is not present on any node.
     """
+
+    _warn_directed_bidirected(G)
 
     def _to_bytes(s: str | bytes) -> bytes:
         return s if isinstance(s, bytes) else s.encode()
@@ -91,9 +112,13 @@ def genome_distance(
 ) -> float:
     """Calculate distance between two sets of nodes.
 
-    ``method`` can be ``"min"`` (default) to return the minimal distance or
-    ``"mean"`` to average all pairwise distances between reachable nodes.
+    Orientation of nodes is ignored.  ``method`` can be ``"min"`` (default)
+    to return the minimal distance or ``"mean"`` to average all pairwise
+    distances between reachable nodes.  Convert bidirected graphs to
+    undirected before calling this function.
     """
+
+    _warn_directed_bidirected(G)
 
     nodes_a = list(nodes_a)
     nodes_b = list(nodes_b)
@@ -158,6 +183,11 @@ def genome_distance_matrix(
     numpy.ndarray | pandas.DataFrame
         Matrix of pairwise distances.  A ``pandas.DataFrame`` is returned
         when pandas is installed, otherwise a ``numpy.ndarray``.
+
+    Notes
+    -----
+    Orientation is ignored when computing distances.  Convert bidirected
+    graphs to undirected first to avoid unexpected results.
     """
 
     paths = load_paths(gfa_path, raw_bytes=raw_bytes_id)
@@ -166,6 +196,7 @@ def genome_distance_matrix(
     G = parse_gfa(
         gfa_path, build_graph=True, build_matrix=False, raw_bytes_id=raw_bytes_id
     )
+    _warn_directed_bidirected(G)
 
     import numpy as np
 
