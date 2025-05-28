@@ -1,0 +1,31 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: pip install .[igraph] pytest flake8 black pytest-cov
+      - name: Lint
+        run: scripts/lint_check.sh
+      - name: Tests
+        run: pytest --cov=gfa2network --cov-report=xml
+      - name: Upload coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-${{ matrix.python-version }}
+          path: coverage.xml
+      - name: Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: coverage.xml

@@ -15,16 +15,19 @@ def write_gfa(tmp_path: Path) -> Path:
 def test_matrix_asymmetric(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     out = tmp_path / "adj.npz"
-    subprocess.run([
-        sys.executable,
-        "-m",
-        "gfa2network",
-        "convert",
-        str(gfa),
-        "--matrix",
-        str(out),
-        "--asymmetric",
-    ], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gfa2network",
+            "convert",
+            str(gfa),
+            "--matrix",
+            str(out),
+            "--asymmetric",
+        ],
+        check=True,
+    )
     A = sp.load_npz(out)
     arr = A.toarray()
     assert not (arr == arr.T).all()

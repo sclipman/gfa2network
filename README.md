@@ -7,7 +7,12 @@
     style="margin-right:10px;"/>
 </p>
 
-# GFA2Network: Memory-efficent GFA→Graph Converter
+[![CI](https://github.com/sclipman/gfa2network/actions/workflows/ci.yml/badge.svg)](https://github.com/sclipman/gfa2network/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/gfa2network)](https://pypi.org/project/gfa2network)
+[![codecov](https://codecov.io/gh/sclipman/gfa2network/branch/main/graph/badge.svg)](https://codecov.io/gh/sclipman/gfa2network)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+# GFA2Network: Memory-efficient GFA→Graph Converter
 
 **GFA2Network** is a small Python library that converts
 [GFA-1](https://github.com/GFA-spec/GFA-spec) and

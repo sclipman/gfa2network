@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 import sys
 
@@ -136,6 +137,7 @@ def main(argv: list[str] | None = None) -> None:
             )
             sys.exit(1)
 
+        t0 = time.perf_counter()
         result = parse_gfa(
             args.gfa,
             build_graph=build_g,
@@ -150,14 +152,29 @@ def main(argv: list[str] | None = None) -> None:
             dtype=args.dtype,
             asymmetric=args.asymmetric,
         )
+        parse_dt = time.perf_counter() - t0
         if build_g and build_mat:
             G, A = result  # type: ignore[misc]
         elif build_g:
             G = result  # type: ignore[assignment]
         else:
             A = result  # type: ignore[assignment]
+        if args.verbose:
+            print(f"Parsed in {parse_dt:.3f} s")
+        t1 = time.perf_counter()
         if build_mat:
             A = convert_format(A, args.matrix_format, verbose=args.verbose)
+        build_dt = time.perf_counter() - t1
+        if args.verbose:
+            target = []
+            if build_g:
+                target.append("graph")
+            if build_mat:
+                target.append("matrix")
+            print(f"Built {' and '.join(target)} in {build_dt:.3f} s")
+
+        t2 = time.perf_counter()
+        if build_mat:
             save_matrix(A, Path(args.matrix), verbose=args.verbose)
         if build_g:
             globals().update({"G": G})
@@ -172,6 +189,9 @@ def main(argv: list[str] | None = None) -> None:
                             pickle.dump(G, fh)
                 else:
                     G.write_pickle(args.output)
+        export_dt = time.perf_counter() - t2
+        if args.verbose:
+            print(f"Exported in {export_dt:.3f} s")
     elif args.cmd == "export":
         parser_format = args.format
         out_path = Path(args.output) if args.output != "-" else None
