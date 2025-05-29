@@ -16,7 +16,9 @@ except Exception:  # pragma: no cover - optional dependency
     sp = None  # type: ignore
     _HAS_SCIPY = False
 
-from .parser import GFAParser, Segment, Link, EdgeRecord, ContainmentRecord
+import sys
+
+from .parser import ContainmentRecord, EdgeRecord, GFAParser, Link, Segment
 
 
 class IGraphBuilder:
@@ -132,30 +134,41 @@ def parse_gfa_igraph(
     bidirected: bool = False,
     keep_directed_bidir: bool = False,
     return_node_list: bool = False,
+    progress_step: int = 500_000,
 ) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
-    """Parse *path* and return an igraph graph and/or a sparse matrix."""
+    """Parse *path* and return an igraph graph and/or a sparse matrix.
+
+    Parameters
+    ----------
+    progress_step : int, optional
+        Emit progress information every ``progress_step`` records when
+        ``verbose`` is ``True``.
+    """
     if not _HAS_IGRAPH:
         raise RuntimeError("python-igraph is not available")
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
 
-    builder = IGraphBuilder(
-        directed=directed,
-        weight_tag=weight_tag,
-        store_seq=store_seq,
-        store_tags=store_tags,
-        strip_orientation=strip_orientation,
-        bidirected=bidirected,
-        keep_directed_bidir=keep_directed_bidir,
-    )
+    builder: IGraphBuilder | None = None
+    if build_graph or build_matrix:
+        builder = IGraphBuilder(
+            directed=directed,
+            weight_tag=weight_tag,
+            store_seq=store_seq,
+            store_tags=store_tags,
+            strip_orientation=strip_orientation,
+            bidirected=bidirected,
+            keep_directed_bidir=keep_directed_bidir,
+        )
     parser = GFAParser(path)
     for lineno, record in enumerate(parser, 1):
-        if isinstance(record, Segment):
-            builder.add_segment(record)
-        elif isinstance(record, (Link, EdgeRecord, ContainmentRecord)):
-            builder.add_edge_record(record)
-        if verbose and lineno % 500_000 == 0:
-            print(f"\r[{lineno:,} lines]", end="")
+        if builder is not None:
+            if isinstance(record, Segment):
+                builder.add_segment(record)
+            elif isinstance(record, (Link, EdgeRecord, ContainmentRecord)):
+                builder.add_edge_record(record)
+        if verbose and lineno % progress_step == 0:
+            print(f"\r[{lineno:,} lines]", end="", file=sys.stderr, flush=True)
     if verbose:
         print("\r[parse_gfa_igraph] done")
 
