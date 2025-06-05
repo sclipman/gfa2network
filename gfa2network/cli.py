@@ -356,6 +356,7 @@ def main(argv: list[str] | None = None) -> None:
             save_matrix(
                 M,
                 Path(args.output),
+                verbose=args.verbose,
                 max_dense_gb=args.max_dense_gb,
             )
         except MemoryError as exc:
