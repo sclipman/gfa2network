@@ -9,6 +9,7 @@ import warnings
 from .alignment import split_records
 from .genome_paths import GenomePathBuilder
 from .model import GraphAccumulator
+from .projection import SourceRelations
 from .parser import (
     GFAParser,
     Segment,
@@ -120,6 +121,11 @@ def parse_gfa(
         else None
     )
     source = parser if rich is None else rich.observe(parser, str(path))
+    counter = None
+    if split_on_alignment:
+        # Count declared input records; the builder sees generated ones.
+        counter = SourceRelations(builder.relations)
+        source = counter.observe(source)
     records = (
         split_records(source, max_nodes=max_split_nodes)
         if split_on_alignment
@@ -155,9 +161,16 @@ def parse_gfa(
             warnings.warn(
                 "stored sequences exceed 50% of available memory", RuntimeWarning
             )
+    try:
+        builder.resolve_pending(final=True)
+    except ValueError as exc:
+        raise ValueError(f"{path}: {exc}") from exc
     graph = builder.finish_graph()
     matrix = builder.finish_matrix(dtype, asymmetric)
-    manifest = builder.manifest(subdivided=split_on_alignment)
+    manifest = builder.manifest(
+        subdivided=split_on_alignment,
+        source=counter.summary() if counter is not None else None,
+    )
     if graph is not None:
         if backend == "networkx":
             manifest["graph_edges"] = graph.number_of_edges()

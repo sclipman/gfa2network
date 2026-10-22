@@ -25,7 +25,11 @@ class Segment:
 
 @dataclass
 class Link:
-    """A link (edge) record with orientation preserved."""
+    """A link (edge) record with orientation preserved.
+
+    ``relation_class`` is ``"subdivision"`` for links that alignment
+    subdivision creates between abutting intervals of one segment.
+    """
 
     from_segment: bytes
     to_segment: bytes
@@ -33,6 +37,7 @@ class Link:
     orientation_to: str
     overlap: bytes | None = None
     tags: dict[str, Any] | None = None
+    relation_class: str | None = None
 
 
 @dataclass

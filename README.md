@@ -121,7 +121,9 @@ containment or an estimated gap is an edge like any other, so connectivity can
 pass through sequence that was never observed as adjacent. GFA2 `E` records are
 classified from forward-strand coordinates and segment lengths; records that
 arrive before their segments are classified when the input ends. Subdivided
-graphs keep each record's original class. Vertices come from `S` records and
+graphs keep each record's original class; links between abutting intervals of
+one segment have the class `subdivision` and are kept by every projection,
+because they restore the segment itself. Vertices come from `S` records and
 included relations.
 
 Each graph carries a manifest in its `projection` attribute (NetworkX
@@ -130,9 +132,10 @@ returns `(result, manifest)` for any result shape, including matrix-only
 conversion. The manifest names the projection and included classes, counts
 included and excluded records by class and record type, and states direction,
 orientation handling, aggregation, weight meaning, edge-cost use, self-loop
-counting, subdivision and vertex/edge/nonzero totals. Record counts include
-duplicate and reciprocal records; the graph aggregates them as described in the
-contract above. `convert --manifest` and `export --manifest` write it with an
+counting, subdivision and vertex/edge/nonzero totals. `records` counts input
+records once each, including duplicate and reciprocal records, which the graph
+aggregates as described in the contract above; under subdivision,
+`subdivided_relations` separately counts the generated interval relations. `convert --manifest` and `export --manifest` write it with an
 `exports` section stating what each written format retains and drops (for
 example, matrices and edge lists drop multiplicity, record provenance and gap
 estimates). `distance-matrix` metadata embeds it with the cost policy.

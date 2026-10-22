@@ -235,17 +235,26 @@ class GraphAccumulator:
             if self.filtered:
                 return
         else:
-            included = relation in self.relations
+            included = relation in self.relations or relation == "subdivision"
             self.counts.add(relation, record_letter(record), included)
             if not included:
                 return
         self._insert(record)
 
-    def resolve_pending(self):
-        """Classify E records that arrived before their segment lengths."""
+    def resolve_pending(self, *, final=False):
+        """Classify held E records whose segment lengths are now known.
+
+        ``final=True`` declares the input complete: records still lacking a
+        length become ``unclassified``. Earlier calls leave them held.
+        """
         pending, self.pending = self.pending, []
         for record in pending:
-            relation = relation_class(record, self.lengths) or "unclassified"
+            relation = relation_class(record, self.lengths)
+            if relation is None:
+                if not final:
+                    self.pending.append(record)
+                    continue
+                relation = "unclassified"
             included = relation in self.relations
             self.counts.add(relation, record_letter(record), included)
             if self.filtered and included:
@@ -255,11 +264,16 @@ class GraphAccumulator:
                     line = getattr(record, "line_number", "?")
                     raise ValueError(f"E record at line {line}: {exc}") from exc
 
-    def manifest(self, *, subdivided=False):
-        """Describe exactly which relations and policies produced this graph."""
+    def manifest(self, *, subdivided=False, source=None):
+        """Describe exactly which relations and policies produced this graph.
+
+        ``source`` holds input-record counts when the accumulator received
+        subdivided records; its own counts are then reported separately.
+        """
         from .version import __version__
 
-        self.resolve_pending()
+        self.resolve_pending(final=True)
+        counts = self.counts.summary(self.relations)
         if self.bidirected:
             orientation = (
                 "oriented vertices <id>:+ / <id>:- with reverse-complement edges"
@@ -283,7 +297,7 @@ class GraphAccumulator:
             "version": __version__,
             "projection": self.projection,
             "relations": sorted(self.relations),
-            "records": self.counts.summary(self.relations),
+            "records": counts if source is None else source,
             "directed": self.directed,
             "bidirected": self.bidirected,
             "orientation": orientation,
@@ -297,6 +311,7 @@ class GraphAccumulator:
             "self_loops": "counted once per record",
             "gap_estimates": "gap_distance/gap_variance metadata only; never edge cost",
             "subdivided": subdivided,
+            **({"subdivided_relations": counts} if source is not None else {}),
             "vertices": len(self.node_index),
         }
 

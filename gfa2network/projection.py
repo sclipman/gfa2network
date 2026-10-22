@@ -18,14 +18,16 @@ record is assigned one relation class:
     unknown or a coordinate lies outside its segment.
 
 A projection selects the classes that become graph edges. ``all`` (the default)
-keeps every record, as in earlier releases.
+keeps every record, as in earlier releases. Under alignment subdivision, links
+between abutting intervals of one segment have the class ``subdivision`` and are
+kept by every projection, because they restore the segment itself.
 """
 
 from __future__ import annotations
 
 from collections import Counter
 
-from .parser import ContainmentRecord, EdgeRecord, GapRecord, Link
+from .parser import ContainmentRecord, EdgeRecord, GapRecord, Link, Segment
 
 CLASSES = ("adjacency", "containment", "alignment", "gap", "unclassified")
 PROJECTIONS = {
@@ -113,7 +115,7 @@ def record_letter(record):
 def relation_class(record, lengths):
     """Relation class of a record, or ``None`` until E segment lengths are known."""
     if isinstance(record, Link):
-        return "adjacency"
+        return record.relation_class or "adjacency"
     if isinstance(record, ContainmentRecord):
         return "containment"
     if isinstance(record, GapRecord):
@@ -146,17 +148,52 @@ class RelationCounts:
 
     def summary(self, classes):
         result = {}
-        for relation in CLASSES:
+        extra = sorted({name for name, _, _ in self.counts} - set(CLASSES))
+        for relation in CLASSES + tuple(extra):
             by_record = Counter()
             for (name, letter, _), count in self.counts.items():
                 if name == relation:
                     by_record[letter] += count
             result[relation] = {
-                "included": relation in classes,
+                "included": relation in classes or relation == "subdivision",
                 "records": sum(by_record.values()),
                 "by_record": dict(sorted(by_record.items())),
             }
         return result
+
+
+class SourceRelations:
+    """Count input relation records by class before any subdivision."""
+
+    def __init__(self, classes):
+        self.classes = classes
+        self.lengths = {}
+        self.pending = []
+        self.counts = RelationCounts()
+
+    def observe(self, records):
+        for record in records:
+            if isinstance(record, Segment):
+                length = record.length
+                if length is None and record.sequence is not None:
+                    length = len(record.sequence)
+                if length is not None:
+                    self.lengths[record.id] = length
+            elif isinstance(record, (Link, EdgeRecord, ContainmentRecord, GapRecord)):
+                self._count(record, relation_class(record, self.lengths))
+            yield record
+
+    def _count(self, record, relation):
+        if relation is None:
+            self.pending.append(record)
+        else:
+            self.counts.add(relation, record_letter(record), relation in self.classes)
+
+    def summary(self):
+        pending, self.pending = self.pending, []
+        for record in pending:
+            self._count(record, relation_class(record, self.lengths) or "unclassified")
+        return self.counts.summary(self.classes)
 
 
 EXPORT_FORMATS = {

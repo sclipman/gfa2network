@@ -184,8 +184,11 @@ def split_records(records, *, max_nodes=1_000_000):
             )
         pieces[node] = intervals
         for first, second in zip(intervals, intervals[1:]):
-            # Adjacent intervals of one segment abut exactly.
-            generated.append(Link(first[2], second[2], "+", "+", b"0M"))
+            # Adjacent intervals of one segment abut exactly; the link restores
+            # the segment itself, so every projection keeps it.
+            generated.append(
+                Link(first[2], second[2], "+", "+", b"0M", None, "subdivision")
+            )
     if len([rec for rec in generated if isinstance(rec, Segment)]) > 10 * len(segments):
         warnings.warn("split-on-alignment created >10x more nodes", RuntimeWarning)
 

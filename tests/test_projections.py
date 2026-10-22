@@ -257,6 +257,16 @@ def test_subdivided_relations_keep_their_source_class(tmp_path, backend):
         return_manifest=True,
     )
     assert manifest["subdivided"] is True
+    # Input records are counted once each; generated relations separately.
+    assert manifest["records"]["adjacency"]["by_record"] == {"E": 1}
+    assert manifest["records"]["containment"]["by_record"] == {"E": 1}
+    generated = manifest["subdivided_relations"]
+    assert generated["containment"]["records"] == 2
+    assert generated["subdivision"] == {
+        "included": True,
+        "records": 6,
+        "by_record": {"L": 6},
+    }
     pairs = {frozenset(pair) for pair in edges_of(graph)}
     # Dovetail blocks (a:3-5 aligned to b:0-2, cut at the propagated b:1) and
     # interval links survive; the blocks aligning b:1-3 with c do not.
@@ -264,7 +274,47 @@ def test_subdivided_relations_keep_their_source_class(tmp_path, backend):
     assert frozenset({"c:0-1", "c:1-2"}) in pairs
     assert not any({v[0] for v in pair} == {"b", "c"} for pair in map(sorted, pairs))
     assert manifest["records"]["containment"]["included"] is False
-    assert manifest["records"]["containment"]["records"] == 2
+    # Under the alignment projection, interval links still rebuild each segment.
+    aligned = parse_gfa(
+        gfa,
+        build_graph=True,
+        build_matrix=False,
+        directed=False,
+        split_on_alignment=True,
+        projection="alignment",
+        backend=backend,
+    )
+    aligned_pairs = {frozenset(pair) for pair in edges_of(aligned)}
+    assert frozenset({"c:0-1", "c:1-2"}) in aligned_pairs
+    assert frozenset({"b:1-2", "c:0-1"}) in aligned_pairs
+    assert frozenset({"a:3-4", "b:0-1"}) not in aligned_pairs
+
+
+def test_held_records_wait_for_the_end_of_input(tmp_path):
+    from gfa2network.model import GraphAccumulator
+    from gfa2network.parser import GFAParser
+
+    gfa = write(tmp_path, GFA2)
+    builder = GraphAccumulator(projection="traversal")
+    records = list(GFAParser(str(gfa)))
+    builder.add_edge_record(records[0])  # e1 precedes its segments
+    builder.finish_graph()  # an early look must not misclassify it
+    assert len(builder.pending) == 1
+    for record in records[1:5]:
+        builder.add_segment(record)
+    graph = builder.finish_graph()
+    assert graph.has_edge("a", "b") and builder.pending == []
+    bad = write(
+        tmp_path,
+        "H\tVN:Z:2.0\nE\te\ta+\tb+\t3\t5$\t0\t2\t2M\tWT:Z:x\n"
+        "S\ta\t5\tACGTA\nS\tb\t5\tTACCC\n",
+        "bad.gfa",
+    )
+    with pytest.raises(ValueError, match=r"bad\.gfa: E record at line 2"):
+        parse_gfa(
+            bad, build_graph=True, build_matrix=False, weight_tag="WT",
+            projection="traversal",
+        )  # fmt: skip
 
 
 def test_return_manifest_wraps_every_result_shape(tmp_path):
