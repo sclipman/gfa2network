@@ -162,7 +162,8 @@ vertices with parent coordinates.
 Each consecutive transition is checked against the relations the input declares,
 in either strand: L links and J jumps, GFA2 dovetail `E` edges (overlap from
 coordinates) and `G` gaps. Containments and internal alignments are not
-traversals. A transition is `supported`, `missing`, `ambiguous` (relations
+traversals; a GFA2 interval spanning a whole segment is a containment.
+A transition is `supported`, `missing`, `ambiguous` (relations
 declare different overlaps, or both a link and a jump), `conflict` (the P overlap
 disagrees with every relation) or a W chunk `boundary`.
 
@@ -175,11 +176,12 @@ and chunk gaps are declared unknown sequence, not failures. Adjacent W chunks jo
 a chunk whose spelled length disagrees with its coordinates is reported.
 
 `audit()` compares spelled paths with source sequences by name (or an explicit
-`reference_names` map). Equivalences are declared, never inferred:
+`reference_names` map); when references are supplied, an audited path without
+one fails as `reference_missing`. Equivalences are declared, never inferred:
 `reverse_complement=True` accepts strand reversal, and `circular` lists paths whose
 comparison accepts rotation; an evidenced closing overlap is trimmed first. W
 chunks with coordinates are compared with `reference[start:end]`; gapped paths
-pass when their pieces occur in order. The receipt records policy, per-path
+pass when their pieces occur in order, at most once around a declared circle. The receipt records policy, per-path
 transition counts, issues, offsets and first differences; `gfa2network paths`
 adds input and reference SHA-256 hashes. A match establishes fidelity to that
 source, not biological validity of the source.

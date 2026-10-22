@@ -428,6 +428,11 @@ class GenomePathBuilder:
             return
         fs, fe, ts, te = coords
         nu, nv = fe - fs, te - ts
+        if not (0 <= fs <= fe <= lu and 0 <= ts <= te <= lv):
+            return
+        if (nu and nu == lu) or (nv and nv == lv):
+            # An interval spanning a whole segment is a containment (GFA2).
+            return
         if edge.cigar is None or edge.cigar == b"*" or not _is_cigar(edge.cigar):
             # Coordinates define the overlap; spelling verifies its bases.
             state, length = ("exact", nu) if nu == nv else ("unsupported", None)
@@ -907,7 +912,9 @@ class GenomePathSet(Mapping):
             key = reference_names.get(label, label)
             reference = references.get(key)
             if reference is None:
-                if spelled.status == "unavailable":
+                if references:
+                    result.comparison = "reference_missing"
+                elif spelled.status == "unavailable":
                     result.comparison = "not_spelled"
                 results.append(result)
                 continue
@@ -988,6 +995,7 @@ class GenomePathSet(Mapping):
         if allow_rc:
             targets.append(reverse_complement(reference))
         for target in targets:
+            size = len(target)
             if circular:
                 target = target + target
             position, offsets = 0, []
@@ -998,8 +1006,10 @@ class GenomePathSet(Mapping):
                 offsets.append(found)
                 position = found + len(piece)
             else:
-                result.comparison, result.offset = "pieces_located", offsets[0]
-                return
+                # After wrap-around, pieces must not reuse circle positions.
+                if position - offsets[0] <= size:
+                    result.comparison, result.offset = "pieces_located", offsets[0]
+                    return
         result.comparison = "pieces_unlocated"
 
 

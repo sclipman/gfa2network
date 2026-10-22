@@ -313,6 +313,29 @@ def test_audit_locates_pieces_and_walk_coordinates(tmp_path):
     assert shifted.paths[0].comparison == "coordinates_differ"
 
 
+def test_supplied_references_must_cover_audited_paths(tmp_path):
+    gfa = write(tmp_path, "S\ta\tAC\nS\tb\tGT\nL\ta\t+\tb\t+\t0M\nP\tp\ta+,b+\t*\n")
+    paths = load_genome_paths(gfa)
+    assert paths.audit().paths[0].comparison == "no_reference"
+    report = paths.audit({"other": "ACGT"})
+    assert report.paths[0].comparison == "reference_missing" and not report.ok
+    mapped = paths.audit({"other": "ACGT"}, reference_names={"p": "other"})
+    assert mapped.paths[0].comparison == "identical" and mapped.ok
+
+
+def test_circular_pieces_cannot_overlap_after_wrapping(tmp_path):
+    gfa = write(
+        tmp_path,
+        "H\tVN:Z:1.2\nS\ta\tAAACG\nS\tb\tCGGT\nJ\ta\t+\tb\t+\t3\nP\tp\ta+;b+\t*\n",
+    )
+    paths = load_genome_paths(gfa)
+    # The pieces span 9 bases; on a 7-base circle they would share bases.
+    report = paths.audit({"p": "AAACGGT"}, circular=["p"])
+    assert report.paths[0].comparison == "pieces_unlocated"
+    wrapped = paths.audit({"p": "GGTTAAACGTTC"}, circular=["p"])
+    assert wrapped.paths[0].comparison == "pieces_located"
+
+
 def test_circular_closing_overlap_is_trimmed_only_with_evidence(tmp_path):
     gfa = write(
         tmp_path,
@@ -348,13 +371,26 @@ def test_gfa2_dovetails_and_gaps(tmp_path):
     )
 
 
-def test_internal_alignments_and_containments_are_not_traversals(tmp_path):
+@pytest.mark.parametrize(
+    "segments,edge,group",
+    [
+        # Internal alignment of a whole short segment.
+        ("S\ta\t6\tACGTAC\nS\tb\t2\tGT\n", "a+\tb+\t2\t4\t0\t2$\t2M", "a+ b+"),
+        # a is contained at the start of b; its interval is a suffix and prefix.
+        ("S\ta\t2\tAC\nS\tb\t4\tACGT\n", "a+\tb+\t0\t2$\t0\t2\t2M", "a+ b+"),
+        # Coordinates beyond both segment ends.
+        ("S\ta\t3\tACG\nS\tb\t3\tCGT\n", "a-\tb+\t0\t5\t0\t5\t5M", "a- b+"),
+    ],
+)
+def test_containments_and_invalid_alignments_are_not_traversals(
+    tmp_path, segments, edge, group
+):
     gfa = write(
         tmp_path,
-        "H\tVN:Z:2.0\nS\ta\t6\tACGTAC\nS\tb\t2\tGT\n"
-        "E\te1\ta+\tb+\t2\t4\t0\t2$\t2M\nO\tp\ta+ b+\n",
+        "H\tVN:Z:2.0\n" + segments + "E\t*\t" + edge + "\nO\tp\t" + group + "\n",
     )
-    assert load_genome_paths(gfa)["p"].transitions[0].status == "missing"
+    path = load_genome_paths(gfa)["p"]
+    assert path.transitions[0].status == "missing" and not path.validated
 
 
 def test_split_paths_keep_parent_intervals_and_source_spelling(tmp_path, backend):
@@ -491,7 +527,7 @@ def test_paths_cli_writes_receipt_and_fasta(tmp_path, capsys):
     payload = json.loads(receipt.read_text())
     assert payload["format"] == "gfa2network-path-fidelity/1"
     assert payload["input"]["sha256"] and payload["reference"]["sha256"]
-    assert payload["summary"]["comparison"] == {"identical": 1, "no_reference": 1}
+    assert payload["summary"]["comparison"] == {"identical": 1, "reference_missing": 1}
     assert not payload["ok"]
     assert read_fasta(spelled) == {"p": b"AAACGGT"}
     with pytest.raises(SystemExit, match="1 of 2 paths"):
