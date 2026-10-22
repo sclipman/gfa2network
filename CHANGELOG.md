@@ -1,22 +1,30 @@
 # Changelog
 
-## Unreleased
-- Parse standard GFA2 edge columns, terminal `$` coordinates, and space-separated
-  ordered groups; preserve identifier suffixes and handle CRLF input.
-- Infer GFA1 segment lengths, recognize absent sequences, and retain containment
-  positions/CIGARs and typed numeric arrays.
-- Check the full dense allocation before export; support dense distance matrices
-  and DOK input when saving sparse NPZ files.
-- Repair igraph reverse-complement vertex naming, metadata on unsorted input,
-  adjacency export, matrix dtype, and symmetry options. Reject unsupported igraph
-  alignment splitting and byte IDs explicitly.
-- Accept shared CLI options after subcommands, repair the `stat` alias, and write
-  GraphML/GEXF to stdout when requested.
-- Build distance matrices on undirected topology so path record order does not
-  change their values. Validate method names and clearly restrict distance
-  helpers to NetworkX until native igraph analysis is implemented.
-- Add specification-based regression cases and a CI matrix; skip optional large
-  fixtures when absent. Document remaining splitting and distance limitations.
+## 2.0.0 — 2026-10-22
+
+- Unify NetworkX, igraph, and sparse adjacency construction under one edge policy:
+  duplicate weights sum by default, parallel records remain available explicitly,
+  self-loops count once, and direction is preserved unless projection is requested.
+- Replace the duplicated split builder with exact interval/CIGAR boundary
+  propagation, correct reverse orientation and link endpoints, metadata retention,
+  path expansion, and a configurable node-expansion guard.
+- Support GFA1.1 W walks, ordered chunks, GFA1.2 jumps, GFA2 gaps, source-line
+  errors, and single-pass statistics/path analysis including stdin.
+- Use the same min, mean-pairwise, and mean-nearest definitions in scalar and
+  matrix APIs. Implement both backends, explicit disconnected policies,
+  nonnegative-cost validation, reachable coverage, and labeled exports.
+- Replace O(PV) search caching with streamed CSR distance vectors; batch igraph
+  construction and use typed sparse buffers. Include fresh-process benchmarks
+  with output fingerprints and measured peak RSS rather than timing assertions.
+- Repair standard GFA2 edge/group parsing, missing sequences, lengths, CRLF,
+  typed tags, dense-allocation guards, NPZ formats, export serialization, CLI
+  option placement, and optional fixture discovery.
+- Consolidate version metadata, remove placeholder author email, add regression
+  and independent-reference tests, and exercise Python 3.8/3.12/3.14 in CI.
+
+See README migration notes for intentional changes from 1.0. Earlier tagged
+release history is retained below; package metadata had advanced to 1.0 without
+an accompanying changelog section before this maintenance pass.
 
 ## v0.12.0
 - Added `--split-on-alignment` option to split segments at alignment

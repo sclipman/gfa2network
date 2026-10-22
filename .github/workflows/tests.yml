@@ -11,7 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.8', '3.12']
+        python: ['3.8', '3.12', '3.14']
         extras: ['', 'igraph,tqdm']
     steps:
       - uses: actions/checkout@v4
@@ -31,3 +31,14 @@ jobs:
         if: matrix.python == '3.12' && matrix.extras != ''
         run: python -m pip install pandas
       - run: python -m pytest -q
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e ".[dev,igraph,tqdm]"
+      - run: bash scripts/lint_check.sh
+      - run: python -m build

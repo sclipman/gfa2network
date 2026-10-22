@@ -15,16 +15,19 @@ def write_gfa(tmp_path: Path) -> Path:
 def test_matrix_dtype(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     out = tmp_path / "adj.npz"
-    subprocess.run([
-        sys.executable,
-        "-m",
-        "gfa2network",
-        "convert",
-        str(gfa),
-        "--matrix",
-        str(out),
-        "--dtype",
-        "bool",
-    ], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gfa2network",
+            "convert",
+            str(gfa),
+            "--matrix",
+            str(out),
+            "--dtype",
+            "bool",
+        ],
+        check=True,
+    )
     A = sp.load_npz(out)
     assert A.dtype == bool

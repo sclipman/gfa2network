@@ -12,7 +12,7 @@ LARGE_GRAPH_PATH = Path(os.environ.get("LARGE_GRAPH", ""))
 def test_parse_large_graph_verbose(capsys):
     parse_gfa(LARGE_GRAPH_PATH, build_graph=False, build_matrix=False, verbose=True)
     captured = capsys.readouterr()
-    assert "[parse_gfa] done" in captured.out
+    assert "[parse_gfa] done" in captured.err
     assert "lines]" in captured.err
 
 
@@ -27,5 +27,5 @@ def test_igraph_backend_verbose(capsys):
         verbose=True,
     )
     captured = capsys.readouterr()
-    assert "[parse_gfa_igraph] done" in captured.out
+    assert "[parse_gfa_igraph] done" in captured.err
     assert "lines]" in captured.err

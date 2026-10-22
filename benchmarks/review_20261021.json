@@ -1,0 +1,715 @@
+{
+  "created_at": "2026-10-22T04:05:12.888342+00:00",
+  "python": "3.12.11",
+  "platform": "macOS-27.0.1-arm64-arm-64bit",
+  "dependencies": {
+    "numpy": "2.5.4",
+    "scipy": "1.18.1",
+    "networkx": "3.7",
+    "igraph": "1.0.0"
+  },
+  "settings": {
+    "nodes": 20000,
+    "repeats": 3,
+    "directed": true,
+    "asymmetric": true,
+    "sequences": false,
+    "tags": false
+  },
+  "scope": "Parse/build wall time; peak process RSS includes imports and fingerprint verification. No million-node or biological-validation claim.",
+  "cases": [
+    {
+      "input": "chain",
+      "input_sha256": "9c1067938de0e9e313719f1e775e293d231a0185f7382e592c4b7c2d8c0bad58",
+      "backend": "networkx",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.06524016702314839,
+            "peak_rss_bytes": 90144768,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.06610141601413488,
+            "peak_rss_bytes": 88768512,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.06358233303762972,
+            "peak_rss_bytes": 88850432,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.10269754199543968,
+            "peak_rss_bytes": 93765632,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.10620291699888185,
+            "peak_rss_bytes": 93110272,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.10296191700035706,
+            "peak_rss_bytes": 93913088,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "chain",
+      "input_sha256": "9c1067938de0e9e313719f1e775e293d231a0185f7382e592c4b7c2d8c0bad58",
+      "backend": "networkx",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.04204408300574869,
+            "peak_rss_bytes": 72204288,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.04209054197417572,
+            "peak_rss_bytes": 72318976,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.04220512497704476,
+            "peak_rss_bytes": 72400896,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.05999295797664672,
+            "peak_rss_bytes": 74530816,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06058370805112645,
+            "peak_rss_bytes": 74481664,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06343033298617229,
+            "peak_rss_bytes": 75579392,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "chain",
+      "input_sha256": "9c1067938de0e9e313719f1e775e293d231a0185f7382e592c4b7c2d8c0bad58",
+      "backend": "igraph",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 1.9014866670477204,
+            "peak_rss_bytes": 79790080,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "1.0",
+            "seconds": 1.901400625007227,
+            "peak_rss_bytes": 79331328,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "1.0",
+            "seconds": 1.9431176250218414,
+            "peak_rss_bytes": 79446016,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.06914791697636247,
+            "peak_rss_bytes": 83804160,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06854070798726752,
+            "peak_rss_bytes": 83787776,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06941037502838299,
+            "peak_rss_bytes": 83935232,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "77b49a9527c43a6f723b32741fc7860a7346905db271cd4afc7ee89cefae0553"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "chain",
+      "input_sha256": "9c1067938de0e9e313719f1e775e293d231a0185f7382e592c4b7c2d8c0bad58",
+      "backend": "igraph",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.05991595797240734,
+            "peak_rss_bytes": 74743808,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06417704100022092,
+            "peak_rss_bytes": 75153408,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06066558399470523,
+            "peak_rss_bytes": 74645504,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "8a76b8c29c7ad7cc3434787c0c60f751dee2a9a09da53a75f74c11c0ebc996b4"
+          }
+        ]
+      },
+      "equivalent_adjacency": false
+    },
+    {
+      "input": "star",
+      "input_sha256": "2b7380b4cc1bb95f9859f263fbfa28b943c568c27d06923f91c14a993781af48",
+      "backend": "networkx",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.06195879098959267,
+            "peak_rss_bytes": 86622208,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.0661964169703424,
+            "peak_rss_bytes": 86474752,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.062030249973759055,
+            "peak_rss_bytes": 86753280,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.10001787502551451,
+            "peak_rss_bytes": 89456640,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.10647250001784414,
+            "peak_rss_bytes": 89735168,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.10585370805347338,
+            "peak_rss_bytes": 89931776,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "star",
+      "input_sha256": "2b7380b4cc1bb95f9859f263fbfa28b943c568c27d06923f91c14a993781af48",
+      "backend": "networkx",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.04120933299418539,
+            "peak_rss_bytes": 72450048,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.042160083015915006,
+            "peak_rss_bytes": 72351744,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.04182074998971075,
+            "peak_rss_bytes": 72974336,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.0606934999814257,
+            "peak_rss_bytes": 74727424,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06074212503153831,
+            "peak_rss_bytes": 74498048,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06718504201853648,
+            "peak_rss_bytes": 74842112,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "star",
+      "input_sha256": "2b7380b4cc1bb95f9859f263fbfa28b943c568c27d06923f91c14a993781af48",
+      "backend": "igraph",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 2.0098096249857917,
+            "peak_rss_bytes": 80445440,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "1.0",
+            "seconds": 2.1593492919928394,
+            "peak_rss_bytes": 82345984,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "1.0",
+            "seconds": 2.0935048749670386,
+            "peak_rss_bytes": 78954496,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.06910470896400511,
+            "peak_rss_bytes": 84164608,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06901929201558232,
+            "peak_rss_bytes": 83607552,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.06783945800270885,
+            "peak_rss_bytes": 83787776,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "c563ffeb8c7c0de7685a3377f02f2978271ef605a5d523136819b90949ef3e00"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "star",
+      "input_sha256": "2b7380b4cc1bb95f9859f263fbfa28b943c568c27d06923f91c14a993781af48",
+      "backend": "igraph",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.06005516595905647,
+            "peak_rss_bytes": 74891264,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.05965849995845929,
+            "peak_rss_bytes": 74809344,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.060481458029244095,
+            "peak_rss_bytes": 74563584,
+            "nodes": 20000,
+            "edges": 19999,
+            "adjacency_sha256": "6b5d9da3bdb5eaa887ed2e17a8056e1f88c5ac5cd7b8439fdf833d6092b1aee7"
+          }
+        ]
+      },
+      "equivalent_adjacency": false
+    },
+    {
+      "input": "bundled-drb1",
+      "input_sha256": "5bd27f8af2eaef771e4e7b629ee92fcbd4012b14bb120bc33bd80baf19525000",
+      "backend": "networkx",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.01832458295393735,
+            "peak_rss_bytes": 72433664,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0d95b459ab00b1373af170e7f4ec1cfabb094492f32ef1c65d6389689d95b8b2"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.018470084003638476,
+            "peak_rss_bytes": 72744960,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0d95b459ab00b1373af170e7f4ec1cfabb094492f32ef1c65d6389689d95b8b2"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.01925870799459517,
+            "peak_rss_bytes": 72351744,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0d95b459ab00b1373af170e7f4ec1cfabb094492f32ef1c65d6389689d95b8b2"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.03148204099852592,
+            "peak_rss_bytes": 73678848,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.031159583013504744,
+            "peak_rss_bytes": 73515008,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.031407208007294685,
+            "peak_rss_bytes": 73842688,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          }
+        ]
+      },
+      "equivalent_adjacency": false
+    },
+    {
+      "input": "bundled-drb1",
+      "input_sha256": "5bd27f8af2eaef771e4e7b629ee92fcbd4012b14bb120bc33bd80baf19525000",
+      "backend": "networkx",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.013483834045473486,
+            "peak_rss_bytes": 69091328,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.013657875009812415,
+            "peak_rss_bytes": 69451776,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.0157657089876011,
+            "peak_rss_bytes": 69353472,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.020745041023474187,
+            "peak_rss_bytes": 69861376,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.020902124990243465,
+            "peak_rss_bytes": 69910528,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.020636749977711588,
+            "peak_rss_bytes": 69844992,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "bundled-drb1",
+      "input_sha256": "5bd27f8af2eaef771e4e7b629ee92fcbd4012b14bb120bc33bd80baf19525000",
+      "backend": "igraph",
+      "mode": "graph",
+      "runs": {
+        "baseline": [
+          {
+            "version": "1.0",
+            "seconds": 0.24668195802951232,
+            "peak_rss_bytes": 72843264,
+            "nodes": 3214,
+            "edges": 6243,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.2411802500137128,
+            "peak_rss_bytes": 72646656,
+            "nodes": 3214,
+            "edges": 6243,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "1.0",
+            "seconds": 0.24871504202019423,
+            "peak_rss_bytes": 72187904,
+            "nodes": 3214,
+            "edges": 6243,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.022900542011484504,
+            "peak_rss_bytes": 72761344,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.022676542052067816,
+            "peak_rss_bytes": 72155136,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.0228971250471659,
+            "peak_rss_bytes": 72286208,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "0a8569caa9d942346992322cecb7f865a5b06bc58621e16685adf372078fb939"
+          }
+        ]
+      },
+      "equivalent_adjacency": true
+    },
+    {
+      "input": "bundled-drb1",
+      "input_sha256": "5bd27f8af2eaef771e4e7b629ee92fcbd4012b14bb120bc33bd80baf19525000",
+      "backend": "igraph",
+      "mode": "matrix",
+      "runs": {
+        "baseline": [
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          },
+          {
+            "error": "TypeError: _get_adjacency_sparse() got an unexpected keyword argument 'default'"
+          }
+        ],
+        "candidate": [
+          {
+            "version": "2.0.0",
+            "seconds": 0.020704041002318263,
+            "peak_rss_bytes": 69697536,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.020605041994713247,
+            "peak_rss_bytes": 69419008,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          },
+          {
+            "version": "2.0.0",
+            "seconds": 0.02068362501449883,
+            "peak_rss_bytes": 69582848,
+            "nodes": 3214,
+            "edges": 6236,
+            "adjacency_sha256": "279ddc024fd6b298574a954f5115d6e6d42df16d0367f225458f1f35d621b2a9"
+          }
+        ]
+      },
+      "equivalent_adjacency": false
+    }
+  ],
+  "baseline_commit": "9dc62f74b9ce15d883e4324a89887b76dd8b4fe3",
+  "source_fingerprints": {
+    "baseline": "3e9e5780603e3e8a800cc6545c90b7fa042fa547fa8d8d73156712306b9840b5",
+    "candidate": "4b21b6397377a97b7212d5b26cd9a5b08c189268228a6c8f8791ebe923dcdb7e"
+  },
+  "measurement_note": "Serial fresh-process conversion benchmarks, after correctness test jobs completed."
+}

@@ -14,15 +14,18 @@ def write_gfa(tmp_path: Path) -> Path:
 def test_export_edge_list(tmp_path: Path):
     gfa = write_gfa(tmp_path)
     out = tmp_path / "edges.tsv"
-    subprocess.run([
-        sys.executable,
-        "-m",
-        "gfa2network",
-        "export",
-        str(gfa),
-        "--format",
-        "edge-list",
-        "--output",
-        str(out),
-    ], check=True)
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "gfa2network",
+            "export",
+            str(gfa),
+            "--format",
+            "edge-list",
+            "--output",
+            str(out),
+        ],
+        check=True,
+    )
     assert out.read_text().strip() == "s1\ts2"

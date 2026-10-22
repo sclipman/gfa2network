@@ -45,7 +45,7 @@ def convert_format(A, fmt: str, *, verbose: bool = False):
     fmt = fmt.lower()
     if fmt not in {"csr", "csc", "coo", "dok"}:
         raise ValueError("matrix-format must be csr|csc|coo|dok")
-    if fmt == "coo":
+    if A.format == fmt:
         return A
     if verbose:
         if _HAS_TQDM:
@@ -79,7 +79,7 @@ def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5
         dense_bytes = math.prod(A.shape) * A.dtype.itemsize
         if dense_bytes > MAX_DENSE_BYTES:
             raise MemoryError(
-                f"dense export would allocate {dense_bytes/1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
+                f"dense export would allocate {dense_bytes / 1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
             )
     if verbose:
         msg = f"[save] {dest.suffix[1:]} → {dest}"
@@ -102,7 +102,7 @@ def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5
         import numpy as np
 
         np.savetxt(
-            dest, A.toarray() if sp.issparse(A) else A, delimiter=",", fmt="%.6g"
+            dest, A.toarray() if sp.issparse(A) else A, delimiter=",", fmt="%.17g"
         )
     else:
         raise ValueError("matrix path must end with .npz, .npy, or .csv")

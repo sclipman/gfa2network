@@ -6,6 +6,7 @@ from gfa2network.analysis import genome_distance
 
 SAMPLE_GFA = b"""S\ts1\t4\nS\ts2\t4\nL\ts1\t+\ts2\t-\t0M\n"""
 
+
 def write_gfa(tmp_path: Path) -> Path:
     gfa = tmp_path / "warn.gfa"
     gfa.write_bytes(SAMPLE_GFA)

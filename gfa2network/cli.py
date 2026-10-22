@@ -1,220 +1,202 @@
+"""Command line conversion, graph export, statistics, and path analysis."""
+
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
+import json
 from pathlib import Path
+import pickle
 import sys
 
 import networkx as nx
-from .builders import parse_gfa
-from .igraph_builder import parse_gfa_igraph, _HAS_IGRAPH
-from .parser import GFAParser, Link, EdgeRecord, ContainmentRecord
-from .utils import convert_format, save_matrix, save_node_map
+import numpy as np
+
 from .analysis import (
+    METHODS,
+    POLICIES,
     compute_stats,
     sequence_distance,
     genome_distance,
     genome_distance_matrix,
-    load_paths,
 )
-from importlib.metadata import version, PackageNotFoundError
+from .builders import parse_gfa
+from .utils import convert_format, save_matrix, save_node_map
+from .version import __version__
 
 
-def main(argv: list[str] | None = None) -> None:
+def _shared(parser, *, root=False):
+    default = {} if root else {"default": argparse.SUPPRESS}
+    parser.add_argument("--raw-bytes-id", action="store_true", **default)
+    parser.add_argument(
+        "--max-dense-gb", type=float, **({"default": 5.0} if root else default)
+    )
+    parser.add_argument(
+        "--max-tag-mb", type=float, **({"default": 100.0} if root else default)
+    )
+
+
+def _backend(parser):
+    parser.add_argument("--backend", choices=["networkx", "igraph"], default="networkx")
+    parser.add_argument("--verbose", action="store_true")
+
+
+def _direction(parser, *, default=True):
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--directed", dest="directed", action="store_true", default=default
+    )
+    group.add_argument("--undirected", dest="directed", action="store_false")
+
+
+def _distance_options(parser):
+    parser.add_argument("--method", choices=METHODS, default="min")
+    parser.add_argument("--unreachable", choices=POLICIES, default="infinite")
+    parser.add_argument("--weight-tag")
+
+
+def _portable(graph):
+    # XML formats accept scalar attributes. Nested provenance remains available
+    # as JSON strings rather than being dropped or passed to unsupported writers.
+    result = nx.relabel_nodes(
+        graph, lambda node: str(node) if isinstance(node, bytes) else node, copy=True
+    )
+
+    def clean(attrs):
+        for key, value in list(attrs.items()):
+            if value is None:
+                del attrs[key]
+            elif isinstance(value, bytes):
+                attrs[key] = value.decode("ascii")
+            elif not isinstance(value, (str, int, float, bool)):
+                attrs[key] = json.dumps(
+                    value,
+                    default=lambda obj: (
+                        obj.decode("ascii") if isinstance(obj, bytes) else str(obj)
+                    ),
+                )
+
+    clean(result.graph)
+    for _, attrs in result.nodes(data=True):
+        clean(attrs)
+    for _, _, attrs in result.edges(data=True):
+        clean(attrs)
+    return result
+
+
+def _run(argv):
     parser = argparse.ArgumentParser(prog="gfa2network")
-    try:
-        pkg_version = version("gfa2network")
-    except PackageNotFoundError:  # pragma: no cover - fallback when not installed
-        from .version import __version__ as pkg_version
-
     parser.add_argument(
-        "--version",
-        action="version",
-        version=f"gfa2network {pkg_version}",
+        "--version", action="version", version=f"gfa2network {__version__}"
     )
-    parser.add_argument(
-        "--raw-bytes-id",
-        action="store_true",
-        help="Use raw bytes for node identifiers (legacy)",
-    )
-    parser.add_argument(
-        "--max-dense-gb",
-        type=float,
-        default=5.0,
-        help="Abort dense matrix saves over N GB (default 5)",
-    )
-    parser.add_argument(
-        "--max-tag-mb",
-        type=float,
-        default=100.0,
-        help="Warn when stored tags exceed N MB (default 100)",
-    )
+    _shared(parser, root=True)
     sub = parser.add_subparsers(dest="cmd", required=True)
-
-    p_conv = sub.add_parser("convert", help="Convert GFA to graph or matrix")
-    p_conv.add_argument("gfa", help="Input *.gfa* file or - for stdin")
-    p_conv.add_argument(
-        "--backend",
-        choices=["networkx", "igraph"],
-        default="networkx",
-        help="Graph backend to use",
+    convert = sub.add_parser(
+        "convert", help="Convert GFA into a graph and/or adjacency matrix"
     )
-    g = p_conv.add_mutually_exclusive_group()
-    g.add_argument(
-        "--directed",
-        dest="directed",
-        action="store_true",
-        default=True,
-        help="Treat graph as directed",
+    convert.add_argument("gfa")
+    _backend(convert)
+    _direction(convert)
+    convert.add_argument("--graph", action="store_true")
+    convert.add_argument("--matrix", "--save-matrix", metavar="PATH")
+    convert.add_argument("-o", "--output", help="Graph pickle path")
+    convert.add_argument(
+        "--matrix-format", choices=["csr", "csc", "coo", "dok"], default="csr"
     )
-    g.add_argument(
-        "--undirected",
-        dest="directed",
-        action="store_false",
-        help="Treat graph as undirected",
-    )
-    p_conv.add_argument("--graph", action="store_true", help="Build a NetworkX object")
-    p_conv.add_argument(
-        "--matrix",
-        metavar="PATH",
-        help="Write adjacency matrix to PATH (.npz|.npy|.csv)",
-    )
-    p_conv.add_argument(
-        "--save-matrix",
-        dest="matrix",
-        metavar="PATH",
-        help=argparse.SUPPRESS,
-    )
-    p_conv.add_argument(
-        "--matrix-format",
-        default="csr",
-        help="Sparse format for .npz (csr|csc|coo|dok)",
-    )
-    p_conv.add_argument(
+    convert.add_argument(
         "--dtype",
         choices=["bool", "int8", "int32", "float32", "float64"],
         default="float64",
-        help="Data type for adjacency matrix",
     )
-    p_conv.add_argument(
+    projection = convert.add_mutually_exclusive_group()
+    projection.add_argument(
         "--asymmetric",
         action="store_true",
-        help="Do not mirror upper triangle",
+        default=None,
+        help="Keep graph direction in the adjacency",
     )
-    p_conv.add_argument(
-        "--no-node-map",
-        action="store_true",
-        help="Do not write <matrix>.nodes.tsv sidecar",
+    projection.add_argument(
+        "--symmetric",
+        dest="asymmetric",
+        action="store_false",
+        help="Explicitly project directed adjacency to undirected",
     )
-    p_conv.add_argument("--weight-tag")
-    p_conv.add_argument("--store-seq", action="store_true")
-    p_conv.add_argument("--store-tags", action="store_true")
-    p_conv.add_argument(
-        "--split-on-alignment",
-        action="store_true",
-        help="Split segments at alignment boundaries",
-    )
-    p_conv.add_argument(
-        "--strip-orientation",
-        action="store_true",
-        help="Strip +/- from IDs (v0.1 behaviour)",
-    )
-    p_conv.add_argument(
-        "--bidirected", action="store_true", help="Use bidirected representation"
-    )
-    p_conv.add_argument(
-        "--keep-directed-bidir",
-        action="store_true",
-        help="Keep original directed bidirected behaviour",
-    )
-    p_conv.add_argument("--verbose", action="store_true")
-    p_conv.add_argument(
-        "-o",
-        "--output",
-        metavar="PATH",
-        help="Write graph pickle to PATH",
-    )
+    convert.add_argument("--no-node-map", action="store_true")
+    convert.add_argument("--weight-tag")
+    convert.add_argument("--store-seq", action="store_true")
+    convert.add_argument("--store-tags", action="store_true")
+    convert.add_argument("--split-on-alignment", action="store_true")
+    convert.add_argument("--max-split-nodes", type=int, default=1_000_000)
+    convert.add_argument("--strip-orientation", action="store_true")
+    convert.add_argument("--bidirected", action="store_true")
+    convert.add_argument("--keep-directed-bidir", action="store_true")
+    convert.add_argument("--edge-mode", choices=["sum", "parallel"], default="sum")
 
-    p_exp = sub.add_parser("export", help="Stream edges in simple formats")
-    p_exp.add_argument("gfa")
-    p_exp.add_argument(
+    export = sub.add_parser("export", help="Export normalized graph connectivity")
+    export.add_argument("gfa")
+    export.add_argument(
         "--format",
-        default="edge-list",
         choices=["edge-list", "graphml", "gexf", "json"],
+        default="edge-list",
     )
-    p_exp.add_argument("--bidirected", action="store_true")
-    p_exp.add_argument(
-        "--keep-directed-bidir",
+    export.add_argument("--output", default="-")
+    export.add_argument("--bidirected", action="store_true")
+    export.add_argument("--keep-directed-bidir", action="store_true")
+    export.add_argument("--edge-mode", choices=["sum", "parallel"], default="sum")
+    export.add_argument("--weight-tag")
+    export.add_argument(
+        "--with-weights",
         action="store_true",
-        help="Keep original directed bidirected behaviour",
+        help="Add summed edge weights as a third edge-list column",
     )
-    p_exp.add_argument("--output", help="Output path", default="-")
+    _direction(export)
 
-    p_stats = sub.add_parser(
-        "stats", help="Print basic graph statistics", aliases=["stat"]
+    stats = sub.add_parser(
+        "stats", aliases=["stat"], help="Graph statistics in one input pass"
     )
-    p_stats.add_argument("gfa", help="Input *.gfa* file or - for stdin")
-    g2 = p_stats.add_mutually_exclusive_group()
-    g2.add_argument("--directed", dest="directed", action="store_true", default=True)
-    g2.add_argument("--undirected", dest="directed", action="store_false")
-    p_stats.add_argument("--strip-orientation", action="store_true")
+    stats.add_argument("gfa")
+    stats.add_argument("--strip-orientation", action="store_true")
+    _direction(stats)
+    _backend(stats)
 
-    p_dist = sub.add_parser("distance", help="Compute distances")
-    p_dist.add_argument("gfa", help="Input *.gfa* file")
-    g3 = p_dist.add_mutually_exclusive_group(required=True)
-    g3.add_argument("--seq", nargs=2, metavar=("SEQ_A", "SEQ_B"))
-    g3.add_argument("--path", nargs=2, metavar=("PATH_A", "PATH_B"))
-    g4 = p_dist.add_mutually_exclusive_group()
-    g4.add_argument("--directed", dest="directed", action="store_true", default=True)
-    g4.add_argument("--undirected", dest="directed", action="store_false")
-    p_dist.add_argument(
-        "--backend",
-        choices=["networkx"],
-        default="networkx",
-        help="Graph backend to use",
+    distance = sub.add_parser(
+        "distance", help="Distances between stored sequences or path node sets"
     )
-    p_dist.add_argument("--verbose", action="store_true")
-
-    p_dm = sub.add_parser("distance-matrix", help="Pairwise distances between paths")
-    p_dm.add_argument("gfa", help="Input *.gfa* file")
-    p_dm.add_argument(
-        "-o", "--output", required=True, help="Write matrix to PATH (.csv|.npy|.npz)"
+    distance.add_argument("gfa")
+    query = distance.add_mutually_exclusive_group(required=True)
+    query.add_argument("--seq", nargs=2)
+    query.add_argument("--path", nargs=2)
+    distance.add_argument(
+        "--details",
+        action="store_true",
+        help="Print distance and reachable coverage as JSON",
     )
-    p_dm.add_argument("--method", choices=["min", "mean"], default="min")
-    p_dm.add_argument(
-        "--backend",
-        choices=["networkx"],
-        default="networkx",
-        help="Graph backend to use",
+    _direction(distance)
+    _backend(distance)
+    _distance_options(distance)
+
+    matrix = sub.add_parser(
+        "distance-matrix",
+        help="Pairwise path node-set distances with labels and coverage",
     )
-    p_dm.add_argument("--verbose", action="store_true")
-
-    # Accept shared options on either side of a subcommand. Suppressed defaults
-    # ensure a subparser does not overwrite an option already parsed at the root.
-    for command in (p_conv, p_exp, p_stats, p_dist, p_dm):
-        command.add_argument("--raw-bytes-id", action="store_true", default=argparse.SUPPRESS)
-        command.add_argument("--max-dense-gb", type=float, default=argparse.SUPPRESS)
-        command.add_argument("--max-tag-mb", type=float, default=argparse.SUPPRESS)
-
+    matrix.add_argument("gfa")
+    matrix.add_argument("-o", "--output", required=True)
+    _direction(matrix, default=False)
+    _backend(matrix)
+    _distance_options(matrix)
+    for command in (convert, export, stats, distance, matrix):
+        _shared(command)
     args = parser.parse_args(argv)
 
     if args.cmd == "convert":
         if not args.graph and not args.matrix:
             parser.error("convert requires --graph or --matrix")
-        build_mat = bool(args.matrix)
-        build_g = args.graph
-        print(f"Using backend: {args.backend}")
-        if args.backend == "igraph" and not _HAS_IGRAPH:
-            print(
-                "Error: python-igraph is required for --backend igraph. Install with `pip install python-igraph`.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
         result = parse_gfa(
             args.gfa,
-            build_graph=build_g,
-            build_matrix=build_mat,
+            build_graph=args.graph,
+            build_matrix=bool(args.matrix),
             directed=args.directed,
+            backend=args.backend,
             weight_tag=args.weight_tag,
             store_seq=args.store_seq,
             store_tags=args.store_tags,
@@ -222,171 +204,203 @@ def main(argv: list[str] | None = None) -> None:
             verbose=args.verbose,
             bidirected=args.bidirected,
             keep_directed_bidir=args.keep_directed_bidir,
-            backend=args.backend,
             dtype=args.dtype,
             asymmetric=args.asymmetric,
             raw_bytes_id=args.raw_bytes_id,
-            return_node_list=build_mat and not args.no_node_map,
+            return_node_list=bool(args.matrix) and not args.no_node_map,
             max_tag_mb=args.max_tag_mb,
             split_on_alignment=args.split_on_alignment,
+            max_split_nodes=args.max_split_nodes,
+            edge_mode=args.edge_mode,
         )
-        if build_g and build_mat:
-            if build_mat and not args.no_node_map:
-                G, A, nodes = result  # type: ignore[misc]
+        graph = adjacency = nodes = None
+        if args.graph and args.matrix:
+            if args.no_node_map:
+                graph, adjacency = result
             else:
-                G, A = result  # type: ignore[misc]
-        elif build_g:
-            G = result  # type: ignore[assignment]
+                graph, adjacency, nodes = result
+        elif args.graph:
+            graph = result
+        elif args.no_node_map:
+            adjacency = result
         else:
-            if build_mat and not args.no_node_map:
-                A, nodes = result  # type: ignore[assignment]
-            else:
-                A = result  # type: ignore[assignment]
-        if build_mat:
-            A = convert_format(A, args.matrix_format, verbose=args.verbose)
-            try:
-                save_matrix(
-                    A,
-                    Path(args.matrix),
-                    verbose=args.verbose,
-                    max_dense_gb=args.max_dense_gb,
-                )
-            except MemoryError as exc:
-                raise SystemExit(str(exc)) from exc
-            if not args.no_node_map:
-                save_node_map(nodes, Path(str(args.matrix) + ".nodes.tsv"))
-        if build_g:
-            globals().update({"G": G})
-            if args.output:
-                if args.backend == "networkx":
-                    if hasattr(nx, "write_gpickle"):
-                        nx.write_gpickle(G, args.output)
-                    else:  # pragma: no cover - legacy NetworkX
-                        import pickle
-
-                        with open(args.output, "wb") as fh:
-                            pickle.dump(G, fh)
-                else:
-                    G.write_pickle(args.output)
-    elif args.cmd == "export":
-        parser_format = args.format
-        out_path = Path(args.output) if args.output != "-" else None
-        if parser_format == "edge-list":
-            fh = open(out_path, "w") if out_path else sys.stdout
-            try:
-                for rec in GFAParser(args.gfa):
-                    if isinstance(rec, (Link, EdgeRecord, ContainmentRecord)):
-                        u = rec.from_segment
-                        v = rec.to_segment
-                        if args.bidirected:
-                            u = u + b":" + rec.orientation_from.encode()
-                            v = v + b":" + rec.orientation_to.encode()
-                        line = f"{u.decode()}\t{v.decode()}\n"
-                        fh.write(line)
-            finally:
-                if out_path:
-                    fh.close()
-        else:
-            G = parse_gfa(
-                args.gfa,
-                build_graph=True,
-                build_matrix=False,
-                directed=True,
-                strip_orientation=False,
-                bidirected=args.bidirected,
-                keep_directed_bidir=args.keep_directed_bidir,
-                raw_bytes_id=args.raw_bytes_id,
-                max_tag_mb=args.max_tag_mb,
-            )
-            if parser_format == "graphml":
-                if args.output == "-":
-                    print("\n".join(nx.generate_graphml(G)))
-                else:
-                    nx.write_graphml(G, args.output)
-            elif parser_format == "gexf":
-                if args.output == "-":
-                    print("\n".join(nx.generate_gexf(G)))
-                else:
-                    nx.write_gexf(G, args.output)
-            elif parser_format == "json":
-                import json
-
-                data = nx.readwrite.json_graph.node_link_data(G)
-                if args.output == "-":
-                    json.dump(data, sys.stdout)
-                else:
-                    with open(args.output, "w") as fh:
-                        json.dump(data, fh)
-    elif args.cmd == "distance":
-        if args.seq:
-            seq_a, seq_b = args.seq
-            G = parse_gfa(
-                args.gfa,
-                build_graph=True,
-                build_matrix=False,
-                directed=args.directed,
-                store_seq=True,
-                raw_bytes_id=args.raw_bytes_id,
-                max_tag_mb=args.max_tag_mb,
-                backend=args.backend,
-                verbose=args.verbose,
-            )
-            dist = sequence_distance(G, seq_a, seq_b)
-        else:
-            paths = load_paths(args.gfa, raw_bytes=args.raw_bytes_id)
-            name_a, name_b = args.path
-            try:
-                key_a = name_a if not args.raw_bytes_id else name_a.encode()
-                key_b = name_b if not args.raw_bytes_id else name_b.encode()
-                nodes_a = paths[key_a]
-                nodes_b = paths[key_b]
-            except KeyError as exc:
-                msg = exc.args[0]
-                if isinstance(msg, bytes):
-                    msg = msg.decode()
-                raise SystemExit(f"unknown path: {msg}") from exc
-            G = parse_gfa(
-                args.gfa,
-                build_graph=True,
-                build_matrix=False,
-                directed=args.directed,
-                raw_bytes_id=args.raw_bytes_id,
-                max_tag_mb=args.max_tag_mb,
-                backend=args.backend,
-                verbose=args.verbose,
-            )
-            dist = genome_distance(G, nodes_a, nodes_b)
-        print(dist)
-    elif args.cmd == "distance-matrix":
-        M = genome_distance_matrix(
-            args.gfa,
-            method=args.method,
-            raw_bytes_id=args.raw_bytes_id,
-            backend=args.backend,
-            verbose=args.verbose,
-        )
-        try:
+            adjacency, nodes = result
+        if args.matrix:
             save_matrix(
-                M,
-                Path(args.output),
+                convert_format(adjacency, args.matrix_format, verbose=args.verbose),
+                Path(args.matrix),
                 verbose=args.verbose,
                 max_dense_gb=args.max_dense_gb,
             )
-        except MemoryError as exc:
-            raise SystemExit(str(exc)) from exc
-    elif args.cmd in {"stats", "stat"}:
-        stats = compute_stats(
+            if nodes is not None:
+                save_node_map(nodes, Path(args.matrix + ".nodes.tsv"))
+        if args.graph:
+            globals()["G"] = graph
+            if args.output:
+                if args.backend == "igraph":
+                    graph.write_pickle(args.output)
+                else:
+                    with open(args.output, "wb") as file:
+                        pickle.dump(graph, file)
+    elif args.cmd == "export":
+        graph = parse_gfa(
+            args.gfa,
+            build_graph=True,
+            build_matrix=False,
+            directed=args.directed,
+            bidirected=args.bidirected,
+            keep_directed_bidir=args.keep_directed_bidir,
+            raw_bytes_id=args.raw_bytes_id,
+            max_tag_mb=args.max_tag_mb,
+            weight_tag=args.weight_tag,
+            edge_mode=args.edge_mode,
+        )
+        if args.format == "edge-list":
+            stream = (
+                sys.stdout
+                if args.output == "-"
+                else open(args.output, "w", encoding="utf-8")
+            )
+            try:
+                for u, v, attrs in graph.edges(data=True):
+                    u = u.decode("ascii") if isinstance(u, bytes) else u
+                    v = v.decode("ascii") if isinstance(v, bytes) else v
+                    suffix = f"\t{attrs['weight']:.17g}" if args.with_weights else ""
+                    stream.write(f"{u}\t{v}{suffix}\n")
+            finally:
+                if stream is not sys.stdout:
+                    stream.close()
+        else:
+            graph = _portable(graph)
+            if args.format in {"graphml", "gexf"}:
+                if args.output == "-":
+                    lines = (
+                        nx.generate_graphml(graph)
+                        if args.format == "graphml"
+                        else nx.generate_gexf(graph)
+                    )
+                    print("\n".join(lines))
+                elif args.format == "graphml":
+                    nx.write_graphml(graph, args.output)
+                else:
+                    nx.write_gexf(graph, args.output)
+            else:
+                payload = nx.node_link_data(graph)
+                stream = (
+                    sys.stdout
+                    if args.output == "-"
+                    else open(args.output, "w", encoding="utf-8")
+                )
+                try:
+                    json.dump(payload, stream)
+                    stream.write("\n")
+                finally:
+                    if stream is not sys.stdout:
+                        stream.close()
+    elif args.cmd == "distance":
+        if args.seq and (args.method != "min" or args.unreachable != "infinite"):
+            parser.error(
+                "--seq uses minimum distance; method/unreachable options apply to --path"
+            )
+        graph, paths = parse_gfa(
+            args.gfa,
+            build_graph=True,
+            build_matrix=False,
+            directed=args.directed,
+            store_seq=bool(args.seq),
+            raw_bytes_id=args.raw_bytes_id,
+            max_tag_mb=args.max_tag_mb,
+            backend=args.backend,
+            verbose=args.verbose,
+            weight_tag=args.weight_tag,
+            return_paths=True,
+        )
+        if args.seq:
+            result = sequence_distance(graph, *args.seq, return_details=args.details)
+        else:
+            keys = [name.encode() if args.raw_bytes_id else name for name in args.path]
+            if any(key not in paths for key in keys):
+                raise ValueError(
+                    "unknown path: "
+                    + ", ".join(
+                        name for key, name in zip(keys, args.path) if key not in paths
+                    )
+                )
+            result = genome_distance(
+                graph,
+                paths[keys[0]],
+                paths[keys[1]],
+                method=args.method,
+                unreachable=args.unreachable,
+                return_details=args.details,
+            )
+        if args.details:
+            payload = asdict(result)
+            payload["coverage"] = result.coverage
+            payload["distance"] = (
+                result.distance if np.isfinite(result.distance) else "inf"
+            )
+            print(json.dumps(payload, allow_nan=False))
+        else:
+            print(f"{result:g}")
+    elif args.cmd == "distance-matrix":
+        result, details = genome_distance_matrix(
+            args.gfa,
+            method=args.method,
+            backend=args.backend,
+            raw_bytes_id=args.raw_bytes_id,
+            verbose=args.verbose,
+            directed=args.directed,
+            unreachable=args.unreachable,
+            weight_tag=args.weight_tag,
+            return_details=True,
+            max_dense_gb=args.max_dense_gb,
+        )
+        save_matrix(
+            result,
+            Path(args.output),
+            verbose=args.verbose,
+            max_dense_gb=args.max_dense_gb,
+        )
+        save_node_map(details["names"], Path(args.output + ".paths.tsv"))
+        np.save(args.output + ".coverage.npy", details["coverage"])
+        metadata = {key: details[key] for key in ("method", "unreachable", "directed")}
+        metadata["coverage_definition"] = (
+            "reachable node pairs / all node pairs"
+            if details["method"] == "mean-pairwise"
+            else "nodes with a reachable counterpart / all source and target nodes"
+        )
+        Path(args.output + ".metadata.json").write_text(
+            json.dumps(metadata, indent=2) + "\n"
+        )
+    else:
+        result = compute_stats(
             args.gfa,
             directed=args.directed,
             strip_orientation=args.strip_orientation,
             raw_bytes_id=args.raw_bytes_id,
+            backend=args.backend,
         )
-        print("nodes\t", stats["nodes"])
-        print("edges\t", stats["edges"])
-        print("paths\t", stats["paths"])
-        print("components\t", stats["components"])
-        print("max_degree\t", stats["max_degree"])
-        print("density\t", f"{stats['density']:.6g}")
+        for key, value in result.items():
+            print(
+                f"{key}\t {value:.6g}"
+                if isinstance(value, float)
+                else f"{key}\t {value}"
+            )
+
+
+def main(argv=None):
+    try:
+        _run(argv)
+    except (
+        ValueError,
+        RuntimeError,
+        MemoryError,
+        KeyError,
+        OSError,
+        nx.NetworkXException,
+    ) as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 if __name__ == "__main__":

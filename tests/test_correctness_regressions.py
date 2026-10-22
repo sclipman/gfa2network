@@ -193,16 +193,17 @@ def test_igraph_matrix_defaults_missing_edge_weights(tmp_path):
     assert matrix[nodes.index("b"), nodes.index("c")] == 1
 
 
-def test_igraph_rejects_unsupported_alignment_splitting(tiny_gfa):
+def test_igraph_supports_alignment_splitting(tiny_gfa):
     pytest.importorskip("igraph")
-    with pytest.raises(ValueError, match="split_on_alignment"):
-        parse_gfa(
-            tiny_gfa,
-            backend="igraph",
-            build_graph=True,
-            build_matrix=False,
-            split_on_alignment=True,
-        )
+    graph = parse_gfa(
+        tiny_gfa,
+        backend="igraph",
+        build_graph=True,
+        build_matrix=False,
+        split_on_alignment=True,
+    )
+    assert graph.vcount() == 2
+    assert graph.ecount() == 1
 
 
 def test_unknown_backend_is_rejected(tiny_gfa):
@@ -225,6 +226,7 @@ def test_distance_matrix_rejects_unknown_method(tiny_gfa):
         genome_distance_matrix(str(tiny_gfa), method="typo")
 
 
-def test_distance_matrix_rejects_unsupported_backend(tiny_gfa):
-    with pytest.raises(ValueError, match="NetworkX"):
+def test_distance_matrix_igraph_reports_missing_paths(tiny_gfa):
+    pytest.importorskip("igraph")
+    with pytest.raises(ValueError, match="no named"):
         genome_distance_matrix(str(tiny_gfa), backend="igraph")

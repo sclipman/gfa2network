@@ -1,208 +1,46 @@
+"""igraph compatibility entry points using the shared batch accumulator."""
+
 from __future__ import annotations
 
 try:
     import igraph as ig
 
     _HAS_IGRAPH = True
-except Exception:  # pragma: no cover - optional dependency
-    ig = None  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    ig = None
     _HAS_IGRAPH = False
-
-try:
-    import scipy.sparse as sp
-
-    _HAS_SCIPY = True
-except Exception:  # pragma: no cover - optional dependency
-    sp = None  # type: ignore
-    _HAS_SCIPY = False
-
-import sys
-
-from .parser import ContainmentRecord, EdgeRecord, GFAParser, Link, Segment
 
 
 class IGraphBuilder:
-    """Build an :class:`igraph.Graph` from GFA records."""
+    """Accumulate records and build igraph vertices/edges in one batch."""
 
-    def __init__(
-        self,
-        *,
-        directed: bool = True,
-        weight_tag: str | None = None,
-        store_seq: bool = False,
-        store_tags: bool = False,
-        strip_orientation: bool = False,
-        bidirected: bool = False,
-        keep_directed_bidir: bool = False,
-    ) -> None:
-        if bidirected:
-            self.directed = True if keep_directed_bidir else False
-        else:
-            self.directed = directed
-        self.weight_tag = weight_tag
-        self.store_seq = store_seq
-        self.store_tags = store_tags
-        self.strip_orientation = strip_orientation
-        self.bidirected = bidirected
-        self.keep_directed_bidir = keep_directed_bidir
-        self.graph = ig.Graph(directed=self.directed) if _HAS_IGRAPH else None
-        self._node_index: dict[bytes, int] = {}
+    def __init__(self, **kwargs):
+        if not _HAS_IGRAPH:
+            raise RuntimeError("python-igraph is not available")
+        from .model import GraphAccumulator
 
-    # ------------------------------------------------------------------
-    def _add_vertex(self, node: bytes, seg: Segment | None = None) -> int:
-        idx = self._node_index.get(node)
-        if idx is None:
-            name = node.decode()
-            self.graph.add_vertex(name=name)  # type: ignore[union-attr]
-            idx = self.graph.vcount() - 1  # type: ignore[union-attr]
-            self._node_index[node] = idx
-        # Links can precede S records. Populate metadata even if a link already
-        # created this vertex.
-        if seg is not None:
-            if self.store_tags and seg.length is not None:
-                self.graph.vs[idx]["length"] = seg.length  # type: ignore[union-attr]
-            if self.store_seq and seg.sequence is not None:
-                self.graph.vs[idx]["sequence"] = seg.sequence  # type: ignore[union-attr]
-            if self.store_tags and seg.tags:
-                self.graph.vs[idx]["tags"] = seg.tags  # type: ignore[union-attr]
-        return idx
-
-    # ------------------------------------------------------------------
-    def add_segment(self, seg: Segment) -> None:
-        if self.bidirected:
-            for ori in ("+", "-"):
-                node = seg.id + b":" + ori.encode()
-                self._add_vertex(node, seg)
-        else:
-            self._add_vertex(seg.id, seg)
-
-    # ------------------------------------------------------------------
-    def add_edge_record(self, rec: Link | EdgeRecord | ContainmentRecord) -> None:
-        u = rec.from_segment
-        v = rec.to_segment
-        if self.strip_orientation:
-            u = u.rstrip(b"+-")
-            v = v.rstrip(b"+-")
-        if self.bidirected:
-            u_node = u + b":" + rec.orientation_from.encode()
-            v_node = v + b":" + rec.orientation_to.encode()
-        else:
-            u_node, v_node = u, v
-        idx_u = self._add_vertex(u_node)
-        idx_v = self._add_vertex(v_node)
-        attrs: dict[str, object] = {}
-        if not self.strip_orientation and not self.bidirected:
-            attrs["orientation_from"] = rec.orientation_from
-            attrs["orientation_to"] = rec.orientation_to
-        if self.store_tags and rec.tags is not None:
-            attrs["tags"] = rec.tags
-        w = None
-        if self.weight_tag and rec.tags and self.weight_tag in rec.tags:
-            val = rec.tags[self.weight_tag]
-            if isinstance(val, (int, float)):
-                w = float(val)
-        attrs["weight"] = 1.0 if w is None else w
-        self.graph.add_edge(idx_u, idx_v, **attrs)  # type: ignore[union-attr]
-        if self.bidirected and not self.keep_directed_bidir:
-            rev_from = "-" if rec.orientation_from == "+" else "+"
-            rev_to = "-" if rec.orientation_to == "+" else "+"
-            u2 = v + b":" + rev_to.encode()
-            v2 = u + b":" + rev_from.encode()
-            idx_u2 = self._add_vertex(u2)
-            idx_v2 = self._add_vertex(v2)
-            self.graph.add_edge(idx_u2, idx_v2, **attrs)  # type: ignore[union-attr]
-
-    # ------------------------------------------------------------------
-    def to_matrix(self) -> "sp.spmatrix":
-        """Return the adjacency matrix of the built graph."""
-        if not _HAS_SCIPY:
-            raise RuntimeError("Matrix output requires SciPy")
-        attribute = "weight" if "weight" in self.graph.edge_attributes() else None
-        return self.graph.get_adjacency_sparse(attribute=attribute)  # type: ignore[union-attr]
-
-
-# ----------------------------------------------------------------------
-
-
-def parse_gfa_igraph(
-    path: str | bytes,
-    *,
-    build_graph: bool,
-    build_matrix: bool,
-    directed: bool = True,
-    weight_tag: str | None = None,
-    store_seq: bool = False,
-    store_tags: bool = False,
-    strip_orientation: bool = False,
-    verbose: bool = False,
-    bidirected: bool = False,
-    keep_directed_bidir: bool = False,
-    return_node_list: bool = False,
-    progress_step: int = 500_000,
-    dtype: str | object = "float64",
-    asymmetric: bool = False,
-) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
-    """Parse *path* and return an igraph graph and/or a sparse matrix.
-
-    Parameters
-    ----------
-    progress_step : int, optional
-        Emit progress information every ``progress_step`` records when
-        ``verbose`` is ``True``.
-    """
-    if not _HAS_IGRAPH:
-        raise RuntimeError("python-igraph is not available")
-    if build_matrix and not _HAS_SCIPY:
-        raise RuntimeError("Matrix output requires SciPy")
-    if return_node_list and not build_matrix:
-        raise ValueError("return_node_list requires build_matrix=True")
-    if progress_step <= 0:
-        raise ValueError("progress_step must be positive")
-
-    builder: IGraphBuilder | None = None
-    if build_graph or build_matrix:
-        builder = IGraphBuilder(
-            directed=directed,
-            weight_tag=weight_tag,
-            store_seq=store_seq and build_graph,
-            store_tags=store_tags and build_graph,
-            strip_orientation=strip_orientation,
-            bidirected=bidirected,
-            keep_directed_bidir=keep_directed_bidir,
+        self._builder = GraphAccumulator(
+            backend="igraph", build_graph=True, build_matrix=True, **kwargs
         )
-    parser = GFAParser(path)
-    for lineno, record in enumerate(parser, 1):
-        if builder is not None:
-            if isinstance(record, Segment):
-                builder.add_segment(record)
-            elif isinstance(record, (Link, EdgeRecord, ContainmentRecord)):
-                builder.add_edge_record(record)
-        if verbose and lineno % progress_step == 0:
-            print(f"\r[{lineno:,} lines]", end="", file=sys.stderr, flush=True)
-    if verbose:
-        print("\r[parse_gfa_igraph] done")
+        self._node_index = self._builder.node_index
+        self.directed = self._builder.directed
 
-    G = builder.graph if build_graph else None
-    A = builder.to_matrix() if build_matrix else None
-    if A is not None:
-        A = A.astype(dtype)
-        if not asymmetric and builder.directed:
-            A = A.maximum(A.T)
-    node_list = None
-    if build_matrix and return_node_list:
-        if G is not None:
-            node_list = [v["name"] for v in G.vs]  # type: ignore[union-attr]
-        else:
-            node_list = [None] * len(builder._node_index)
-            for node, idx in builder._node_index.items():
-                node_list[idx] = node.decode()
-    if build_graph and build_matrix:
-        if return_node_list:
-            return G, A, node_list
-        return G, A
-    if build_graph:
-        return G
-    if build_matrix:
-        if return_node_list:
-            return A, node_list
-        return A
+    @property
+    def graph(self):
+        return self._builder.finish_graph()
+
+    def add_segment(self, record):
+        self._builder.add_segment(record)
+
+    def add_edge_record(self, record):
+        self._builder.add_edge_record(record)
+
+    def to_matrix(self):
+        return self._builder.finish_matrix().tocsr()
+
+
+def parse_gfa_igraph(path, **kwargs):
+    """Equivalent to ``parse_gfa(path, backend='igraph', **kwargs)``."""
+    from .builders import parse_gfa
+
+    return parse_gfa(path, backend="igraph", **kwargs)

@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-set -e
-black --check gfa2network tests
-flake8 gfa2network tests
+set -euo pipefail
+python -m ruff check gfa2network tests scripts/benchmark.py
+python -m ruff format --check gfa2network tests scripts/benchmark.py

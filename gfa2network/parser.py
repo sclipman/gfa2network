@@ -6,6 +6,8 @@ from typing import Any, BinaryIO, Iterator, Iterable, Tuple
 import sys
 import warnings
 import gzip
+import re
+from urllib.parse import quote
 
 
 @dataclass
@@ -16,6 +18,9 @@ class Segment:
     length: int | None = None
     sequence: bytes | None = None
     tags: dict[str, Any] | None = None
+    parent: bytes | None = None
+    start: int | None = None
+    end: int | None = None
 
 
 @dataclass
@@ -73,10 +78,27 @@ class ContainmentRecord:
 
 @dataclass
 class WalkRecord:
-    """GFA2 ordered walk record (O)."""
+    """GFA2 ordered group or GFA1.1 walk chunk."""
 
     name: bytes
     segments: list[Tuple[bytes, str]]
+    tags: dict[str, Any] | None = None
+
+    start: int | None = None
+    end: int | None = None
+    is_chunk: bool = False
+
+
+@dataclass
+class GapRecord:
+    """GFA1.2 jump or GFA2 estimated gap; distance is metadata, not an edge cost."""
+
+    from_segment: bytes
+    to_segment: bytes
+    orientation_from: str
+    orientation_to: str
+    distance: int | None = None
+    variance: int | None = None
     tags: dict[str, Any] | None = None
 
 
@@ -92,98 +114,116 @@ class GFAParser:
             self.file = source
         self._warned_unknown = False
 
-    def __iter__(
-        self,
-    ) -> Iterator[
-        Segment | Link | EdgeRecord | ContainmentRecord | PathRecord | WalkRecord
-    ]:
+    def __iter__(self) -> Iterator[object]:
         if self.file is not None:
-            fh = self.file
-            close = False
+            fh, close = self.file, False
         else:
             path = self.path or "-"
             if path == "-":
-                fh = sys.stdin.buffer
+                fh, close = sys.stdin.buffer, False
             else:
-                if str(path).endswith(".gz"):
-                    fh = gzip.open(path, "rb")
-                else:
-                    fh = open(path, "rb", buffering=1 << 20)
-            close = path != "-"
+                fh = (
+                    gzip.open(path, "rb")
+                    if path.endswith(".gz")
+                    else open(path, "rb", buffering=1 << 20)
+                )
+                close = True
+        warned = set()
+        self.unsupported_records = set()
+        readers = {
+            b"S": self._parse_segment,
+            b"L": self._parse_link,
+            b"E": self._parse_edge,
+            b"C": self._parse_containment,
+            b"P": self._parse_path,
+            b"O": self._parse_walk,
+            b"W": self._parse_gfa1_walk,
+            b"J": self._parse_gap,
+            b"G": self._parse_gap,
+        }
         try:
-            for line in fh:
+            for number, line in enumerate(fh, 1):
                 if not line.strip() or line.startswith(b"#"):
                     continue
-                if line[0] not in (
-                    ord("S"),
-                    ord("L"),
-                    ord("P"),
-                    ord("E"),
-                    ord("C"),
-                    ord("O"),
-                ):
-                    if line[0] not in (ord("H"), ord("F")) and not self._warned_unknown:
-                        warnings.warn(
-                            f"Skipping unsupported record: {line[:1].decode()}",
-                            RuntimeWarning,
-                            stacklevel=1,
-                        )
-                        self._warned_unknown = True
-                    continue
                 fields = line.rstrip(b"\r\n").split(b"\t")
-                rec_type = fields[0]
-                if rec_type == b"S":
-                    if len(fields) < 3:
-                        raise ValueError("Malformed S record")
-                    seq: bytes | None = None
-                    length: int | None = None
-                    tag_start = 3
-                    if len(fields) > 2:
-                        third = fields[2]
-                        try:
-                            length = int(third)
-                            if len(fields) > 3:
-                                fourth = fields[3]
-                                # Heuristically detect if field 4 is a tag
-                                parts = fourth.split(b":", 2)
-                                if (
-                                    len(parts) == 3
-                                    and len(parts[0]) == 2
-                                    and len(parts[1]) == 1
-                                ):
-                                    tag_start = 3
-                                else:
-                                    seq = fourth
-                                    tag_start = 4
-                        except ValueError:
-                            seq = third
-                    tags = (
-                        self._parse_tags(fields[tag_start:])
-                        if len(fields) > tag_start
-                        else None
-                    )
-                    if seq == b"*":
-                        seq = None
-                    if length is None:
-                        tagged_length = (tags or {}).get("LN")
-                        if isinstance(tagged_length, int):
-                            length = tagged_length
-                        elif seq is not None:
-                            length = len(seq)
-                    yield Segment(fields[1], length, seq, tags)
-                elif rec_type == b"L":
-                    yield self._parse_link(fields)
-                elif rec_type == b"E":
-                    yield self._parse_edge(fields)
-                elif rec_type == b"C":
-                    yield self._parse_containment(fields)
-                elif rec_type == b"P":
-                    yield self._parse_path(fields)
-                elif rec_type == b"O":
-                    yield self._parse_walk(fields)
+                kind = fields[0]
+                try:
+                    if kind == b"H":
+                        for field in fields[1:]:
+                            if field.startswith(b"VN:Z:") and field[5:] not in (
+                                b"1.0",
+                                b"1.1",
+                                b"1.2",
+                                b"2.0",
+                            ):
+                                raise ValueError(
+                                    "unsupported GFA version " + field[5:].decode()
+                                )
+                        continue
+                    if kind in (b"F", b"U"):
+                        # Fragment alignments and unordered groups do not define
+                        # connectivity or ordered segment paths.
+                        continue
+                    if kind not in readers:
+                        self.unsupported_records.add(
+                            kind.decode("ascii", errors="replace")
+                        )
+                        if kind not in warned:
+                            warnings.warn(
+                                f"Skipping unsupported record: {kind.decode('ascii', errors='replace')}",
+                                RuntimeWarning,
+                            )
+                            warned.add(kind)
+                        continue
+                    record = readers[kind](fields)
+                    if isinstance(record, (EdgeRecord, ContainmentRecord)):
+                        for start, end in (
+                            (record.from_start, record.from_end),
+                            (record.to_start, record.to_end),
+                        ):
+                            if (start is not None and start < 0) or (
+                                end is not None
+                                and (end < 0 or (start is not None and end < start))
+                            ):
+                                raise ValueError(
+                                    "invalid alignment coordinate interval"
+                                )
+                    record.line_number = number
+                    yield record
+                except (ValueError, IndexError, UnicodeError) as exc:
+                    source = self.path or "<stream>"
+                    raise ValueError(
+                        f"{source}:{number}: {kind.decode('ascii', errors='replace')} record: {exc}"
+                    ) from exc
         finally:
             if close:
                 fh.close()
+
+    @staticmethod
+    def _parse_segment(fields):
+        if len(fields) < 3 or not fields[1]:
+            raise ValueError("Malformed S record")
+        seq, length, tag_start = None, None, 3
+        try:
+            length = int(fields[2])
+            if length < 0:
+                raise ValueError("negative segment length")
+            if len(fields) > 3 and not re.match(
+                rb"^[A-Za-z0-9]{2}:[A-Za-z]:", fields[3]
+            ):
+                seq, tag_start = fields[3], 4
+        except ValueError:
+            if fields[2].startswith(b"-") and fields[2][1:].isdigit():
+                raise ValueError("negative segment length")
+            seq = fields[2]
+        tags = GFAParser._parse_tags(fields[tag_start:])
+        if seq in (b"*", b""):
+            seq = None
+        if length is None:
+            length = (tags or {}).get("LN", len(seq) if seq is not None else None)
+        if length is not None and (not isinstance(length, int) or length < 0):
+            raise ValueError("invalid segment length")
+        return Segment(fields[1], length, seq, tags)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -246,7 +286,9 @@ class GFAParser:
             raise ValueError("Malformed P record")
         name = fields[1]
         segments: list[Tuple[bytes, str]] = []
-        for entry in fields[2].split(b","):
+        for entry in re.split(rb"(?<=[+-])[,;]", fields[2]):
+            if len(entry) < 2 or not entry.endswith((b"+", b"-")):
+                raise ValueError("path references must have an orientation")
             orientation = "+"
             if entry.endswith(b"+"):
                 seg = entry[:-1]
@@ -257,7 +299,7 @@ class GFAParser:
             else:
                 seg = entry
             segments.append((seg, orientation))
-        tags = GFAParser._parse_tags(fields[3:]) if len(fields) > 3 else None
+        tags = GFAParser._parse_tags(fields[4:]) if len(fields) > 4 else None
         return PathRecord(name, segments, tags)
 
     @staticmethod
@@ -265,16 +307,23 @@ class GFAParser:
         if len(fields) < 6:
             raise ValueError("Malformed E record")
         # GFA2 puts both oriented references before the four coordinates.
-        if (len(fields) >= 9 and fields[2].endswith((b"+", b"-"))
-                and fields[3].endswith((b"+", b"-"))):
+        if (
+            len(fields) >= 9
+            and fields[2].endswith((b"+", b"-"))
+            and fields[3].endswith((b"+", b"-"))
+        ):
+
             def position(value: bytes) -> int:
                 return int(value[:-1] if value.endswith(b"$") else value)
 
             return EdgeRecord(
-                fields[2][:-1], fields[3][:-1],
-                chr(fields[2][-1]), chr(fields[3][-1]),
+                fields[2][:-1],
+                fields[3][:-1],
+                chr(fields[2][-1]),
+                chr(fields[3][-1]),
                 *(position(value) for value in fields[4:8]),
-                fields[8], GFAParser._parse_tags(fields[9:]),
+                fields[8],
+                GFAParser._parse_tags(fields[9:]),
             )
         # Retain the older, nonstandard coordinate layout for compatibility.
         if len(fields) >= 9:
@@ -297,9 +346,7 @@ class GFAParser:
                 to_start = int(fields[6])
                 to_end = int(fields[7])
                 cigar = fields[8]
-                tags = (
-                    GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
-                )
+                tags = GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
                 return EdgeRecord(
                     u,
                     v,
@@ -314,7 +361,9 @@ class GFAParser:
                 )
         # Historical orientation-only edges are also accepted.
         if fields[3] not in (b"+", b"-") or fields[5] not in (b"+", b"-"):
-            raise ValueError("Malformed E record: invalid oriented references or coordinates")
+            raise ValueError(
+                "Malformed E record: invalid oriented references or coordinates"
+            )
         u = fields[2]
         ori_from = fields[3].decode()
         v = fields[4]
@@ -326,11 +375,17 @@ class GFAParser:
     def _parse_containment(fields: list[bytes]) -> ContainmentRecord:
         if len(fields) < 5:
             raise ValueError("Malformed C record")
-        if (len(fields) >= 7 and fields[2] in (b"+", b"-")
-                and fields[4] in (b"+", b"-")):
+        if len(fields) >= 7 and fields[2] in (b"+", b"-") and fields[4] in (b"+", b"-"):
             return ContainmentRecord(
-                fields[1], fields[3], fields[2].decode(), fields[4].decode(),
-                int(fields[5]), None, 0, None, fields[6],
+                fields[1],
+                fields[3],
+                fields[2].decode(),
+                fields[4].decode(),
+                int(fields[5]),
+                None,
+                0,
+                None,
+                fields[6],
                 GFAParser._parse_tags(fields[7:]),
             )
         if len(fields) >= 9:
@@ -353,9 +408,7 @@ class GFAParser:
                 to_start = int(fields[6])
                 to_end = int(fields[7])
                 cigar = fields[8]
-                tags = (
-                    GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
-                )
+                tags = GFAParser._parse_tags(fields[9:]) if len(fields) > 9 else None
                 return ContainmentRecord(
                     u,
                     v,
@@ -373,7 +426,9 @@ class GFAParser:
         v = fields[3]
         ori_to = fields[4].decode()
         tags = GFAParser._parse_tags(fields[5:]) if len(fields) > 5 else None
-        return ContainmentRecord(u, v, ori_from, ori_to, None, None, None, None, None, tags)
+        return ContainmentRecord(
+            u, v, ori_from, ori_to, None, None, None, None, None, tags
+        )
 
     @staticmethod
     def _parse_walk(fields: list[bytes]) -> WalkRecord:
@@ -382,7 +437,11 @@ class GFAParser:
         name = fields[1]
         segments: list[Tuple[bytes, str]] = []
         # GFA2 groups use spaces. Commas are legal within a segment identifier.
+        if not fields[2].split():
+            raise ValueError("empty ordered group")
         for entry in fields[2].split():
+            if len(entry) < 2 or not entry.endswith((b"+", b"-")):
+                raise ValueError("group references must have an orientation")
             orientation = "+"
             if entry.endswith(b"+"):
                 seg = entry[:-1]
@@ -395,3 +454,69 @@ class GFAParser:
             segments.append((seg, orientation))
         tags = GFAParser._parse_tags(fields[3:]) if len(fields) > 3 else None
         return WalkRecord(name, segments, tags)
+
+    @staticmethod
+    def _parse_gfa1_walk(fields):
+        if len(fields) < 7:
+            raise ValueError("Malformed W record")
+        haplotype = int(fields[2])
+        if haplotype < 0:
+            raise ValueError("negative haplotype index")
+        start = None if fields[4] == b"*" else int(fields[4])
+        end = None if fields[5] == b"*" else int(fields[5])
+        if (start is not None and start < 0) or (
+            end is not None and (end < 0 or (start is not None and end < start))
+        ):
+            raise ValueError("invalid walk interval")
+        tokens = re.findall(rb"([><])([^><]+)", fields[6])
+        if not tokens or b"".join(sign + node for sign, node in tokens) != fields[6]:
+            raise ValueError("invalid oriented walk")
+        name = "#".join(
+            quote(value.decode("ascii"), safe="")
+            for value in (fields[1], str(haplotype).encode(), fields[3])
+        ).encode()
+        return WalkRecord(
+            name,
+            [(node, "+" if sign == b">" else "-") for sign, node in tokens],
+            GFAParser._parse_tags(fields[7:]),
+            start,
+            end,
+            True,
+        )
+
+    @staticmethod
+    def _parse_gap(fields):
+        if fields[0] == b"J":
+            if (
+                len(fields) < 6
+                or fields[2] not in (b"+", b"-")
+                or fields[4] not in (b"+", b"-")
+            ):
+                raise ValueError("Malformed J record")
+            return GapRecord(
+                fields[1],
+                fields[3],
+                fields[2].decode(),
+                fields[4].decode(),
+                None if fields[5] == b"*" else int(fields[5]),
+                None,
+                GFAParser._parse_tags(fields[6:]),
+            )
+        if (
+            len(fields) < 6
+            or not fields[2].endswith((b"+", b"-"))
+            or not fields[3].endswith((b"+", b"-"))
+        ):
+            raise ValueError("Malformed G record")
+        variance = None if fields[5] == b"*" else int(fields[5])
+        if variance is not None and variance < 0:
+            raise ValueError("negative gap variance")
+        return GapRecord(
+            fields[2][:-1],
+            fields[3][:-1],
+            chr(fields[2][-1]),
+            chr(fields[3][-1]),
+            None if fields[4] == b"*" else int(fields[4]),
+            variance,
+            GFAParser._parse_tags(fields[6:]),
+        )
