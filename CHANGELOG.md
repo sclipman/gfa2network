@@ -39,6 +39,13 @@ unchanged. Graphs gain a `projection` manifest attribute.
   to segment renaming and sequence-preserving re-segmentation; missing lengths
   and unknown overlaps are reported, never read as absence. CLI: `compare`,
   `shared-content`.
+- Add `bridge_blocks()` for contiguous sequence shared across externally
+  labeled path groups, with witnesses, flanking contexts and partial visitors;
+  `transform.chop()`/`transform.rename()` for sequence-preserving
+  representation checks; `genome_distance_matrix(names=...)`; and
+  `examples/topology_report.py`.
+- `audit(ambiguity="as-n")` / `paths --ambiguity as-n` declares IUPAC
+  ambiguity codes equal to N; `audit(circular=False)` no longer raises.
 - `GenomePathSet.layout()` exposes per-step lengths, overlaps, contiguity and
   start coordinates.
 - Subdivided paths keep parent segments with interval coordinates. Interval links

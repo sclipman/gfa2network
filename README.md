@@ -144,6 +144,34 @@ bases give no ratio. In the bundled DRB1 graph, `gi|345525392:5000-18402` is the
 reverse-strand traversal of `gi|568815529:3998044-4011446` apart from one terminal
 segment: content Jaccard > 0.999, forward collinear 0, reverse collinear 13,401 bp.
 
+### Blocks shared across labeled groups
+
+`bridge_blocks(paths, groups)` takes group labels from outside the graph (for
+example taxonomy) and returns runs of contiguous sequence that paths from at
+least two groups traverse. A run extends while every adjacency inside it is
+traversed by exactly the same paths, and only paths that read the whole run
+contiguously are members; paths that merely visit its segments (common when
+segments are a few bases long) are listed as `partial`. Each block lists its
+sequence, member witnesses and flanking contexts, so a block embedded in
+group-specific contexts can be told apart from a longer region shared across
+groups. A bridge block is a graph observation, not evidence of recombination,
+ancestry or homology.
+
+### Representation checks and a report
+
+`gfa2network.transform.chop(src, dst, max_length)` splits segments of blunt GFA1
+graphs into pieces and `rename(src, dst)` relabels them; neither changes a spelled
+path. Sequence-level results (content, collinear chains, bridge blocks) should be
+unchanged, while vertex-count measures such as hop distances may move.
+
+`examples/topology_report.py` combines these for a graph with genome paths, a
+source FASTA and external labels: a fidelity receipt with mismatch classes, a
+group-level content summary, a seeded per-group subset compared by content,
+collinear chains, connectivity distance and an exact k-mer Jaccard from the FASTA
+alone, cross-group blocks checked against the FASTA, and a sensitivity table after
+renaming and chopping. `genome_distance_matrix(..., names=[...])` restricts a
+matrix to a path subset.
+
 ## Relation projections and manifests
 
 GFA records declare different relationships. Every relation record is assigned
