@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+import hashlib
 import json
 from pathlib import Path
 import pickle
@@ -21,6 +22,7 @@ from .analysis import (
     genome_distance_matrix,
 )
 from .builders import parse_gfa
+from .genome_paths import OVERLAP_POLICIES, load_genome_paths
 from .utils import convert_format, save_matrix, save_node_map
 from .version import __version__
 
@@ -82,6 +84,16 @@ def _portable(graph):
     for _, _, attrs in result.edges(data=True):
         clean(attrs)
     return result
+
+
+def _sha256(path):
+    if path == "-":
+        return None
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def _run(argv):
@@ -184,7 +196,39 @@ def _run(argv):
     _direction(matrix, default=False)
     _backend(matrix)
     _distance_options(matrix)
-    for command in (convert, export, stats, distance, matrix):
+    paths = sub.add_parser(
+        "paths",
+        help="Validate path transitions, spell sequences and audit them against FASTA",
+    )
+    paths.add_argument("gfa")
+    paths.add_argument("--reference", metavar="FASTA", help="Source sequences")
+    paths.add_argument("--path", nargs="+", help="Audit only these paths")
+    circular = paths.add_mutually_exclusive_group()
+    circular.add_argument(
+        "--circular",
+        nargs="+",
+        default=(),
+        help="Paths whose comparison permits rotation",
+    )
+    circular.add_argument("--all-circular", action="store_true")
+    paths.add_argument(
+        "--reverse-complement",
+        action="store_true",
+        help="Accept a reverse-complement match",
+    )
+    paths.add_argument("--case-sensitive", action="store_true")
+    paths.add_argument(
+        "--unknown-overlap",
+        choices=OVERLAP_POLICIES,
+        default="strict",
+        help="Abstain on unspecified overlaps (strict) or treat them as blunt (zero)",
+    )
+    paths.add_argument("-o", "--output", default="-", help="JSON receipt path")
+    paths.add_argument("--fasta", help="Write completely spelled paths as FASTA")
+    paths.add_argument(
+        "--strict", action="store_true", help="Exit nonzero unless every path passes"
+    )
+    for command in (convert, export, stats, distance, matrix, paths):
         _shared(command)
     args = parser.parse_args(argv)
 
@@ -373,6 +417,51 @@ def _run(argv):
         Path(args.output + ".metadata.json").write_text(
             json.dumps(metadata, indent=2) + "\n"
         )
+    elif args.cmd == "paths":
+        collection = load_genome_paths(args.gfa)
+        unknown = [name for name in args.path or () if name not in collection]
+        if unknown:
+            raise ValueError("unknown path: " + ", ".join(unknown))
+        report = collection.audit(
+            args.reference,
+            names=args.path,
+            circular=True if args.all_circular else args.circular,
+            reverse_complement=args.reverse_complement,
+            ignore_case=not args.case_sensitive,
+            unknown_overlap=args.unknown_overlap,
+        )
+        payload = {
+            "format": "gfa2network-path-fidelity/1",
+            "version": __version__,
+            "input": {"path": args.gfa, "sha256": _sha256(args.gfa)},
+            "reference": (
+                {"path": args.reference, "sha256": _sha256(args.reference)}
+                if args.reference
+                else None
+            ),
+        }
+        payload.update(report.to_dict())
+        text = json.dumps(payload, indent=2) + "\n"
+        if args.output == "-":
+            sys.stdout.write(text)
+        else:
+            Path(args.output).write_text(text)
+        if args.fasta:
+            with open(args.fasta, "wb") as handle:
+                for name in args.path or list(collection):
+                    spelled = collection.spell(
+                        name, unknown_overlap=args.unknown_overlap
+                    )
+                    if spelled.sequence is not None:
+                        handle.write(b">" + name.encode() + b"\n")
+                        sequence = spelled.sequence
+                        for start in range(0, len(sequence), 80):
+                            handle.write(sequence[start : start + 80] + b"\n")
+        if args.strict and not report.ok:
+            failed = len(report.paths) - report.summary["passed"]
+            raise SystemExit(
+                f"{failed} of {len(report.paths)} paths did not pass the fidelity audit"
+            )
     else:
         result = compute_stats(
             args.gfa,

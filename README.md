@@ -48,6 +48,9 @@ gfa2network export input.gfa --format graphml > graph.graphml
 
 # Pairwise path connectivity, with labels and reachable-coverage sidecars
 gfa2network distance-matrix input.gfa -o distances.csv --method mean-pairwise
+
+# Validate path transitions, spell sequences and audit them against source FASTA
+gfa2network paths input.gfa --reference genomes.fa -o receipt.json --fasta spelled.fa
 ```
 
 Use `gfa2network <subcommand> --help` for options. Shared flags
@@ -130,6 +133,57 @@ bounds interval expansion before graph construction; the flag can be increased
 for deliberate larger conversions. Expansion beyond ten times the original node
 count also emits a warning.
 
+## Genome paths
+
+`parse_gfa(..., return_paths=True)` returns each path as a list of vertex
+identifiers. For genome-level work, request rich paths instead:
+
+```python
+from gfa2network import load_genome_paths, parse_gfa
+
+paths = load_genome_paths("input.gfa")          # one pass; stdin and gzip work
+G, paths = parse_gfa("input.gfa", build_graph=True, build_matrix=False,
+                     return_paths=True, rich_paths=True)
+path = paths["sample1"]
+path.steps          # ordered, oriented; repeated visits are separate steps
+path.transitions    # relation evidence for each consecutive step
+path.chunks         # W chunk coordinates (P/O records form one chunk)
+paths.vertex_lists()                 # equals the list result for this graph
+spelled = paths.spell("sample1")     # complete / partial / unavailable, with reasons
+report = paths.audit("genomes.fa", circular=["sample1"])
+```
+
+A `GenomePathSet` keeps what each path declares: P overlaps and link (`,`) versus
+jump (`;`) separators, W sample/haplotype/sequence identity and coordinates, record
+lines and tags. Step strand is independent of whether the graph is bidirected.
+Under `split_on_alignment`, steps remain input segments and list their interval
+vertices with parent coordinates.
+
+Each consecutive transition is checked against the relations the input declares,
+in either strand: L links and J jumps, GFA2 dovetail `E` edges (overlap from
+coordinates) and `G` gaps. Containments and internal alignments are not
+traversals. A transition is `supported`, `missing`, `ambiguous` (relations
+declare different overlaps, or both a link and a jump), `conflict` (the P overlap
+disagrees with every relation) or a W chunk `boundary`.
+
+Spelling never fills in sequence. Overlaps of only `M`/`=` operations are applied
+after verifying the overlapping bases; unspecified (`*`) overlaps abstain unless
+`unknown_overlap="zero"` is requested, which is recorded. Missing sequence,
+indel-bearing overlaps, mismatching overlap bases, missing or ambiguous
+transitions, jumps and W chunk gaps split the spelling into labeled pieces. Jumps
+and chunk gaps are declared unknown sequence, not failures. Adjacent W chunks join;
+a chunk whose spelled length disagrees with its coordinates is reported.
+
+`audit()` compares spelled paths with source sequences by name (or an explicit
+`reference_names` map). Equivalences are declared, never inferred:
+`reverse_complement=True` accepts strand reversal, and `circular` lists paths whose
+comparison accepts rotation; an evidenced closing overlap is trimmed first. W
+chunks with coordinates are compared with `reference[start:end]`; gapped paths
+pass when their pieces occur in order. The receipt records policy, per-path
+transition counts, issues, offsets and first differences; `gfa2network paths`
+adds input and reference SHA-256 hashes. A match establishes fidelity to that
+source, not biological validity of the source.
+
 ## Distances
 
 These functions summarize graph connectivity, using edge costs. They do not
@@ -142,7 +196,8 @@ identity. `min` is zero whenever two node sets share any node.
 | `mean-pairwise` (alias `mean`) | Arithmetic mean over all source/target node pairs. |
 | `mean-nearest` | Mean of source-to-nearest-target and nearest-source-to-target costs. |
 
-Node sets are deduplicated; repeated path visits do not receive extra weight.
+Node sets are deduplicated; repeated path visits do not receive extra weight,
+and path order is not used (rich paths keep both).
 Graph-based functions respect the supplied graph direction. Distance matrices
 are undirected by default; `--directed` produces directional matrices. Pairwise
 mean diagonal entries are computed and can be nonzero, just as in the scalar API.

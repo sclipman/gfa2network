@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased (2.1.0.dev0)
+
+Additive; graph, matrix, list-path and distance outputs are unchanged.
+
+- Add optional rich genome paths: `load_genome_paths()` and
+  `parse_gfa(..., return_paths=True, rich_paths=True)` return a `GenomePathSet`
+  keeping ordered oriented steps, repeated visits, P overlaps and link/jump
+  separators, W chunk coordinates and sample/haplotype/sequence identity.
+  Strand belongs to each step, independent of the graph projection.
+- Check every consecutive path transition against L/J records and GFA2 dovetail
+  `E`/`G` records in either strand; report `missing`, `ambiguous` or `conflict`
+  evidence instead of assuming a traversal.
+- Spell path sequence only where sequences, overlaps and transitions are
+  unambiguous; overlapping bases are verified. Missing sequence, unspecified or
+  indel-bearing overlaps, jumps and W chunk gaps split the result into labeled
+  pieces with reasons. `unknown_overlap='zero'` is an explicit, recorded policy.
+- Add a path-fidelity audit against source FASTA, with declared reverse-complement
+  and circular-rotation equivalences, W coordinate checks and a JSON receipt;
+  exposed as `gfa2network paths`.
+- Subdivided paths keep parent segments with interval coordinates. Interval links
+  now carry an explicit `0M` overlap, and expanded P records keep consistent
+  separators and overlaps.
+
 ## 2.0.0 — 2026-10-22
 
 - Unify NetworkX, igraph, and sparse adjacency construction under one edge policy:

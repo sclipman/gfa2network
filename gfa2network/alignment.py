@@ -183,7 +183,8 @@ def split_records(records, *, max_nodes=1_000_000):
             )
         pieces[node] = intervals
         for first, second in zip(intervals, intervals[1:]):
-            generated.append(Link(first[2], second[2], "+", "+"))
+            # Adjacent intervals of one segment abut exactly.
+            generated.append(Link(first[2], second[2], "+", "+", b"0M"))
     if len([rec for rec in generated if isinstance(rec, Segment)]) > 10 * len(segments):
         warnings.warn("split-on-alignment created >10x more nodes", RuntimeWarning)
 
@@ -216,11 +217,31 @@ def split_records(records, *, max_nodes=1_000_000):
             continue
         if isinstance(rec, (PathRecord, WalkRecord)):
             expanded = []
-            for node, orientation in rec.segments:
+            separators, overlaps = [], []
+            declared = getattr(rec, "separators", None)
+            raw_overlaps = getattr(rec, "overlaps", None)
+            mapped = (
+                raw_overlaps is not None and len(raw_overlaps) == len(rec.segments) - 1
+            )
+            for position, (node, orientation) in enumerate(rec.segments):
                 require_segment(node)
                 items = pieces[node] if orientation == "+" else pieces[node][::-1]
-                expanded.extend((item[2], orientation) for item in items)
-            generated.append(replace(rec, segments=expanded))
+                for offset, item in enumerate(items):
+                    if expanded and declared is not None:
+                        inner = offset > 0
+                        separators.append("," if inner else declared[position - 1])
+                        if mapped:
+                            overlaps.append(
+                                b"0M" if inner else raw_overlaps[position - 1]
+                            )
+                    expanded.append((item[2], orientation))
+            changes = {"segments": expanded}
+            if declared is not None:
+                changes["separators"] = separators
+            if mapped:
+                # A malformed overlap count is kept raw rather than re-indexed.
+                changes["overlaps"] = overlaps
+            generated.append(replace(rec, **changes))
         elif index in edge_blocks:
             for u, a, b, v, c, d, _, _ in edge_blocks[index]:
                 left = interval_parts(u, a, b, rec.orientation_from)

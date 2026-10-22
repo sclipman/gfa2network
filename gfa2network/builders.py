@@ -7,6 +7,7 @@ import sys
 import warnings
 
 from .alignment import split_records
+from .genome_paths import GenomePathBuilder
 from .model import GraphAccumulator
 from .parser import (
     GFAParser,
@@ -43,6 +44,7 @@ def parse_gfa(
     max_tag_mb: float = 100.0,
     split_on_alignment: bool = False,
     return_paths: bool = False,
+    rich_paths: bool = False,
     edge_mode: str = "sum",
     progress_step: int = 500_000,
     max_split_nodes: int = 1_000_000,
@@ -62,6 +64,14 @@ def parse_gfa(
     ``return_paths=True`` returns ``(ordinary_result, paths)``. This collects P/O/W
     paths in the same input pass, works on stdin, and validates path references.
     Split paths refer to the generated intervals in traversal order.
+
+    ``rich_paths=True`` (with ``return_paths=True``) returns a
+    :class:`~gfa2network.genome_paths.GenomePathSet` instead of the list mapping.
+    It keeps ordered oriented steps, repeated visits, P overlaps and link/jump
+    separators, W chunk coordinates, per-transition relation evidence, and
+    segment sequences for spelling. Its ``vertex_lists()`` equals the list
+    result. Steps describe the input segments; under ``split_on_alignment`` each
+    step also lists its interval vertices with parent coordinates.
     """
     if backend not in {"networkx", "igraph"}:
         raise ValueError(f"unknown backend: {backend}")
@@ -72,6 +82,8 @@ def parse_gfa(
             raise RuntimeError(
                 "python-igraph is not available; install gfa2network[igraph]"
             )
+    if rich_paths and not return_paths:
+        raise ValueError("rich_paths requires return_paths=True")
     if return_node_list and not build_matrix:
         raise ValueError("return_node_list requires build_matrix=True")
     if progress_step <= 0:
@@ -92,16 +104,24 @@ def parse_gfa(
         max_tag_mb=max_tag_mb,
     )
     parser = GFAParser(path)
-    records = (
-        split_records(parser, max_nodes=max_split_nodes)
-        if split_on_alignment
-        else parser
+    rich = (
+        GenomePathBuilder(raw_bytes=raw_bytes_id, bidirected=bidirected)
+        if rich_paths
+        else None
     )
-    paths = PathCollector() if return_paths else None
+    source = parser if rich is None else rich.observe(parser, str(path))
+    records = (
+        split_records(source, max_nodes=max_split_nodes)
+        if split_on_alignment
+        else source
+    )
+    paths = PathCollector() if return_paths and rich is None else None
     for count, record in enumerate(records, 1):
         try:
             if isinstance(record, Segment):
                 builder.add_segment(record)
+                if rich is not None and record.parent is not None:
+                    rich.add(record)
             elif isinstance(record, (Link, EdgeRecord, ContainmentRecord, GapRecord)):
                 builder.add_edge_record(record)
             elif paths is not None and isinstance(record, (PathRecord, WalkRecord)):
@@ -145,6 +165,8 @@ def parse_gfa(
         result = (matrix, node_list) if return_node_list else matrix
     else:
         result = None
+    if rich is not None:
+        return result, rich.finish()
     if return_paths:
         return result, paths.finish(
             raw_bytes=raw_bytes_id,

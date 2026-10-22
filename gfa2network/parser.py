@@ -37,11 +37,18 @@ class Link:
 
 @dataclass
 class PathRecord:
-    """A path consisting of ordered oriented segments."""
+    """A path consisting of ordered oriented segments.
+
+    ``separators`` holds the delimiter between consecutive steps: ``,`` for a
+    link and ``;`` for a GFA1.2 jump. ``overlaps`` holds the raw overlap field
+    split on commas, or ``None`` when the whole field is ``*``.
+    """
 
     name: bytes
     segments: list[Tuple[bytes, str]]
     tags: dict[str, Any] | None = None
+    overlaps: list[bytes] | None = None
+    separators: list[str] | None = None
 
 
 @dataclass
@@ -87,6 +94,9 @@ class WalkRecord:
     start: int | None = None
     end: int | None = None
     is_chunk: bool = False
+    sample: bytes | None = None
+    haplotype: int | None = None
+    sequence_id: bytes | None = None
 
 
 @dataclass
@@ -100,6 +110,7 @@ class GapRecord:
     distance: int | None = None
     variance: int | None = None
     tags: dict[str, Any] | None = None
+    line_type: str | None = None
 
 
 class GFAParser:
@@ -286,7 +297,9 @@ class GFAParser:
             raise ValueError("Malformed P record")
         name = fields[1]
         segments: list[Tuple[bytes, str]] = []
-        for entry in re.split(rb"(?<=[+-])[,;]", fields[2]):
+        parts = re.split(rb"(?<=[+-])([,;])", fields[2])
+        separators = [part.decode() for part in parts[1::2]]
+        for entry in parts[0::2]:
             if len(entry) < 2 or not entry.endswith((b"+", b"-")):
                 raise ValueError("path references must have an orientation")
             orientation = "+"
@@ -300,7 +313,10 @@ class GFAParser:
                 seg = entry
             segments.append((seg, orientation))
         tags = GFAParser._parse_tags(fields[4:]) if len(fields) > 4 else None
-        return PathRecord(name, segments, tags)
+        overlaps = None
+        if len(fields) > 3 and fields[3] not in (b"*", b""):
+            overlaps = fields[3].split(b",")
+        return PathRecord(name, segments, tags, overlaps, separators)
 
     @staticmethod
     def _parse_edge(fields: list[bytes]) -> EdgeRecord:
@@ -482,6 +498,9 @@ class GFAParser:
             start,
             end,
             True,
+            fields[1],
+            haplotype,
+            fields[3],
         )
 
     @staticmethod
@@ -501,6 +520,7 @@ class GFAParser:
                 None if fields[5] == b"*" else int(fields[5]),
                 None,
                 GFAParser._parse_tags(fields[6:]),
+                "J",
             )
         if (
             len(fields) < 6
@@ -519,4 +539,5 @@ class GFAParser:
             None if fields[4] == b"*" else int(fields[4]),
             variance,
             GFAParser._parse_tags(fields[6:]),
+            "G",
         )

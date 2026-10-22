@@ -24,8 +24,8 @@ class PathCollector:
             raise ValueError(f"duplicate path name {name!r}")
         entries.append(record)
 
-    def finish(self, *, raw_bytes=False, oriented=False, nodes=None):
-        result = {}
+    def grouped(self):
+        """Yield ``(name, records)`` with W chunks coordinate-sorted and checked."""
         for name, records in self.records.items():
             if len(records) > 1:
                 if any(rec.start is None or rec.end is None for rec in records):
@@ -35,6 +35,11 @@ class PathCollector:
                 records = sorted(records, key=lambda rec: rec.start)
                 if any(a.end > b.start for a, b in zip(records, records[1:])):
                     raise ValueError(f"overlapping W chunks for {name!r}")
+            yield name, records
+
+    def finish(self, *, raw_bytes=False, oriented=False, nodes=None):
+        result = {}
+        for name, records in self.grouped():
             values = []
             for record in records:
                 for node, orientation in record.segments:
