@@ -5,21 +5,19 @@ counted in bases rather than vertices, so a sequence-preserving change of
 segmentation (or renaming) leaves them unchanged.
 
 Content
-    Each step contributes the bases of its segment that the path does not
-    already spell through a neighbouring step. The bases of an exact overlap
-    are removed from one of the two segments, chosen by the strand-canonical
-    form of the link, so a path and its reverse-complement traversal (or a
-    rotation of a declared circular path, whose closing link then counts too)
-    lose the same forward-strand bases. A complete path's content totals its
-    spelled length unless overlaps on both sides of a segment meet. Content is
-    strand-independent. ``copies='unique'`` counts each segment base once per
-    path (set semantics); ``copies='count'`` counts repeated visits
-    (multiset: shared = sum of the smaller copy number). Steps with an unknown
-    segment length are excluded and reported; steps whose incoming overlap is
-    unknown contribute their whole segment and are reported as uncertain.
-    Shared content means the paths traverse the same graph segments. It is not
-    an alignment identity (ANI) and implies nothing about homology beyond what
-    the graph construction asserted.
+    Each step contributes every base of its segment. Where adjacent segments
+    overlap, the overlapping bases belong to both segments in the graph and are
+    counted once per segment, so content does not depend on traversal strand,
+    rotation or segment names; a path's copy-counted content is its spelled
+    length plus its overlaps. Content is strand-independent.
+    ``copies='unique'`` counts each segment base once per path (set semantics);
+    ``copies='count'`` counts repeated visits (multiset: shared = sum of the
+    smaller copy number). Steps with an unknown segment length are excluded and
+    reported; steps whose incoming overlap is unknown are reported as
+    uncertain, because blocks and coordinates cannot cross them. Shared content
+    means the paths traverse the same graph segments. It is not an alignment
+    identity (ANI) and implies nothing about homology beyond what the graph
+    construction asserted.
 
 Blocks
     A shared block is a maximal run of consecutive steps visiting the same
@@ -29,11 +27,11 @@ Blocks
 
 Collinear chain
     The heaviest set of non-overlapping blocks in the same order in both paths,
-    weighted by each block's shared bases: for every pair of matched steps, the
-    overlap of the segment bases each step contributes. A chain therefore never
-    exceeds the copy-counted shared content of the two paths. Blocks with unknown segment lengths
-    weigh their known bases and are marked incomplete. It measures conserved order; reordered content lowers it
-    while leaving shared content unchanged. Blocks are chained whole, not
+    weighted by each block's bases: the lengths of the segments its matched
+    steps visit. A chain therefore never exceeds the copy-counted shared
+    content of the two paths. Blocks with unknown segment lengths weigh their
+    known bases and are marked incomplete. It measures conserved order;
+    reordered content lowers it while leaving shared content unchanged. Blocks are chained whole, not
     trimmed. ``circular=True`` additionally lets the chain start anywhere in
     both paths; wrapping across a path's end requires supported closing-link
     evidence.
@@ -167,70 +165,33 @@ class PathComparison:
 # ---------------------------------------------------------------- content
 
 
-def _link_key(first, second):
-    (a, oa), (b, ob) = first, second
-    return min((a, oa, b, ob), (b, _FLIP[ob], a, _FLIP[oa]))
-
-
-def _attribution(paths, name, layout, closing=None):
-    """Per-step forward-strand intervals after removing overlaps canonically.
+def _attribution(paths, name, layout):
+    """Per-step whole-segment intervals.
 
     Returns ``(intervals, contributions, unresolved, uncertain)``: one
-    ``(segment, start, end)`` or ``None`` per step, the bases each step
-    contributes (``None`` if its length is unknown), and the steps with an
-    unknown length or an unknown incoming overlap. ``closing`` is
-    ``(contiguous, overlap)`` for the link from the last step back to the
-    first, when the path is declared circular.
+    ``(segment, 0, length)`` or ``None`` per step, the bases each step
+    contributes (``None`` if its length is unknown), the steps with an unknown
+    length, and the steps whose incoming overlap is unknown.
     """
     steps = paths[name].steps
-    n = len(steps)
-    tokens = [(_raw(step.segment), step.orientation) for step in steps]
-    prefix, suffix = [0] * n, [0] * n
-    uncertain = []
-
-    def remove(before, after, overlap):
-        if (
-            tokens[before][0],
-            tokens[before][1],
-            tokens[after][0],
-            tokens[after][1],
-        ) == _link_key(tokens[before], tokens[after]):
-            prefix[after] += overlap  # the later segment's leading bases
-        else:
-            suffix[before] += overlap  # the earlier segment's trailing bases
-
-    for i in range(1, n):
-        overlap = layout.overlaps[i]
-        if overlap is None:
-            uncertain.append(i)
-        elif overlap and layout.contiguous[i]:
-            remove(i - 1, i, overlap)
-    if closing is not None and closing[0] and closing[1] and n:
-        remove(n - 1, 0, closing[1])
     intervals, contributions, unresolved = [], [], []
-    for i, (segment, orientation) in enumerate(tokens):
+    for i, step in enumerate(steps):
         length = layout.lengths[i]
         if length is None:
             unresolved.append(i)
             intervals.append(None)
             contributions.append(None)
             continue
-        lead, trail = min(prefix[i], length), min(suffix[i], length)
-        if lead + trail >= length:
-            interval = (0, 0)
-        elif orientation == "+":
-            interval = (lead, length - trail)
-        else:
-            interval = (trail, length - lead)
-        intervals.append((segment,) + interval)
-        contributions.append(interval[1] - interval[0])
-    return intervals, contributions, tuple(unresolved), tuple(uncertain)
+        intervals.append((_raw(step.segment), 0, length))
+        contributions.append(length)
+    uncertain = tuple(i for i in range(1, len(steps)) if layout.overlaps[i] is None)
+    return intervals, contributions, tuple(unresolved), uncertain
 
 
 class _Content:
-    def __init__(self, paths, name, layout, closing=None):
+    def __init__(self, paths, name, layout):
         intervals, contributions, unresolved, uncertain = _attribution(
-            paths, name, layout, closing
+            paths, name, layout
         )
         self.contributions = contributions
         self.intervals = [None if item is None else item[1:] for item in intervals]
@@ -561,10 +522,7 @@ def compare_paths(
         name: _closing(paths, name, unknown_overlap) if circular else (False, 0)
         for name in (a, b)
     }
-    contents = {
-        name: _Content(paths, name, layouts[name], closings[name] if circular else None)
-        for name in (a, b)
-    }
+    contents = {name: _Content(paths, name, layouts[name]) for name in (a, b)}
     content = _compare_content(contents[a], contents[b], copies)
     tracks = {
         name: _Track(
@@ -632,7 +590,7 @@ def compare_paths(
         "orientation": orientation,
         "circular": circular,
         "unknown_overlap": unknown_overlap,
-        "content": "segment bases traversed; overlap bases removed from the strand-canonical side",
+        "content": "whole segment bases traversed; overlap bases counted once per segment",
         "blocks": "maximal runs of identical oriented steps across supported links",
     }
     return PathComparison(
@@ -653,7 +611,6 @@ def shared_content_matrix(
     measure="jaccard",
     copies="unique",
     unknown_overlap="strict",
-    circular=(),
 ):
     """Pairwise base-aware shared content for many paths.
 
@@ -663,26 +620,15 @@ def shared_content_matrix(
     per-path :class:`PathContent` and the policy. Pairs with no resolved bases
     are ``NaN`` rather than 0, so missing evidence is not reported as absence.
     Segments every path traverses whole are summed with sparse products;
-    partially covered segments use an interval sweep. ``circular`` names
-    paths (or ``True`` for all) whose closing-link overlap is attributed, as in
-    :func:`compare_paths`.
+    partially covered segments use an interval sweep.
     """
     if measure not in MEASURES:
         raise ValueError("measure must be jaccard, shared or containment")
     if copies not in COPIES:
         raise ValueError("copies must be unique or count")
     names = list(paths) if names is None else list(names)
-    if circular is True:
-        ring = set(map(_text, names))
-    else:
-        ring = set(map(_text, circular or ()))
     contents = [
-        _Content(
-            paths,
-            name,
-            paths.layout(name, unknown_overlap=unknown_overlap),
-            _closing(paths, name, unknown_overlap) if _text(name) in ring else None,
-        )
+        _Content(paths, name, paths.layout(name, unknown_overlap=unknown_overlap))
         for name in names
     ]
     n = len(names)

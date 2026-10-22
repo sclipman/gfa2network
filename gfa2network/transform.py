@@ -101,23 +101,30 @@ def chop(source, destination, max_length):
                 tokens = re.split(rb"(?<=[+-])([,;])", fields[2])
                 steps, separators = tokens[0::2], tokens[1::2]
                 overlaps = fields[3] if len(fields) > 3 else b"*"
-                if overlaps != b"*" and any(
-                    o not in (b"0M", b"*") for o in overlaps.split(b",")
-                ):
-                    raise ValueError(f"line {number}: chop requires blunt overlaps")
-                expanded, joins = [], []
+                entries = None if overlaps == b"*" else overlaps.split(b",")
+                if entries is not None:
+                    if any(o not in (b"0M", b"*") for o in entries):
+                        raise ValueError(f"line {number}: chop requires blunt overlaps")
+                    if len(entries) != len(steps) - 1:
+                        raise ValueError(
+                            f"line {number}: chop requires one overlap per transition"
+                        )
+                expanded, joins, written = [], [], []
                 for index, step in enumerate(steps):
                     ids = parts(step[:-1], step[-1:])
                     if index:
                         joins.append(separators[index - 1])
+                        # Each original transition keeps its own declaration.
+                        written.append(entries[index - 1] if entries else None)
                     joins.extend([b","] * (len(ids) - 1))
+                    written.extend([b"0M"] * (len(ids) - 1))
                     expanded.extend(piece + step[-1:] for piece in ids)
                 text = expanded[0] + b"".join(
                     join + piece for join, piece in zip(joins, expanded[1:])
                 )
                 fields[2] = text
-                if overlaps != b"*":
-                    fields[3] = b",".join([b"0M"] * (len(expanded) - 1)) or b"*"
+                if entries is not None:
+                    fields[3] = b",".join(written) or b"*"
                 out.write(b"\t".join(fields) + b"\n")
             elif kind == b"W":
                 fields = list(fields)

@@ -115,7 +115,7 @@ result.content.jaccard, result.collinear.bases, result.blocks[0].a  # witness
 
 | Quantity | Definition |
 | --- | --- |
-| Content | Segment bases a path traverses. The bases of an exact overlap are removed from one of the two segments, chosen by the link's strand-canonical form, so a reverse-complement traversal (or a rotation of a declared circular path, whose closing link then counts) loses the same bases. A complete path's content with repeats equals its spelled length unless overlaps on both sides of a segment meet. |
+| Content | Every base of each segment a path traverses. Overlapping bases of adjacent segments belong to both segments and count once per segment, so content does not depend on strand, rotation or segment names; copy-counted content is the spelled length plus the path's overlaps (equal to it in blunt graphs). |
 | `copies="unique"` / `"count"` | Each segment base once per path, or repeated visits counted (shared = smaller copy number). |
 | Shared, union, Jaccard, containment | Shared bases; union = A + B − shared; Jaccard = shared / union; containment = shared / the row path. A zero denominator gives `None` / `NaN`, not 0. |
 | Shared block | Maximal run of consecutive steps with identical segments and orientations in both paths (`forward`), or reversed with opposite orientations (`reverse`). Blocks never cross a jump, a W chunk gap or a transition without supported link evidence. |
@@ -148,10 +148,14 @@ segment: content Jaccard > 0.999, forward collinear 0, reverse collinear 13,401 
 
 `bridge_blocks(paths, groups)` takes group labels from outside the graph (for
 example taxonomy) and returns runs of contiguous sequence that paths from at
-least two groups traverse. A run extends while every adjacency inside it is
-traversed by exactly the same paths, and only paths that read the whole run
-contiguously are members; paths that merely visit its segments (common when
-segments are a few bases long) are listed as `partial`. Each block lists its
+least two groups traverse. A run of segments extends while every segment is
+visited by exactly the same labeled paths and every link between them is
+traversed by exactly those paths, so splitting a segment into pieces does not
+change the blocks. Members are the paths that read the whole run contiguously;
+paths that traverse every link but not as one run (for example by revisiting a
+segment) are listed as `partial`. When too few groups read a run contiguously,
+the run is split rather than dropped, and with repeated segments the split can
+depend on path order. Each block lists its
 sequence, member witnesses and flanking contexts, so a block embedded in
 group-specific contexts can be told apart from a longer region shared across
 groups. A bridge block is a graph observation, not evidence of recombination,

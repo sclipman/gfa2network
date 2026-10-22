@@ -35,9 +35,11 @@ unchanged. Graphs gain a `projection` manifest attribute.
 - Add base-aware path comparison: `shared_content_matrix()` (shared bases,
   union, Jaccard, containment; unique or copy-counted) and `compare_paths()`
   (maximal forward/reverse shared blocks with step and coordinate witnesses, and
-  a base-weighted collinear chain, optionally circular). Results are invariant
-  to segment renaming and sequence-preserving re-segmentation; missing lengths
-  and unknown overlaps are reported, never read as absence. CLI: `compare`,
+  a base-weighted collinear chain, optionally circular). Content counts whole
+  segments, so overlapping bases count once per segment and results do not
+  depend on strand, rotation, segment names or sequence-preserving
+  re-segmentation; missing lengths and unknown overlaps are reported, never
+  read as absence. CLI: `compare`,
   `shared-content`.
 - Add `bridge_blocks()` for contiguous sequence shared across externally
   labeled path groups, with witnesses, flanking contexts and partial visitors;

@@ -12,6 +12,7 @@ from gfa2network.analysis import genome_distance
 from gfa2network.cli import main
 from gfa2network.genome_paths import load_genome_paths
 from gfa2network.path_compare import compare_paths, shared_content_matrix
+from gfa2network.transform import rename
 
 DRB1 = Path(__file__).parent / "data" / "DRB1-3123_unsorted.gfa"
 SEGMENTS = "S\ta\tAAAA\nS\tc\tCCCC\nS\tg\tGGGG\nS\tt\tTTAT\n"
@@ -132,7 +133,7 @@ def test_unknown_overlaps_are_uncertain_unless_declared(tmp_path):
     assert [b.steps for b in blunt.blocks] == [2]
 
 
-def test_overlap_bases_are_removed_once_from_a_canonical_side(tmp_path):
+def test_overlap_bases_count_once_per_segment(tmp_path):
     gfa = tmp_path / "overlap.gfa"
     gfa.write_text(
         "S\ta\tACGTA\nS\tb\tTACCC\nL\ta\t+\tb\t+\t2M\nP\tx\ta+,b+\t*\nP\ty\tb+\t*\n"
@@ -140,36 +141,48 @@ def test_overlap_bases_are_removed_once_from_a_canonical_side(tmp_path):
     )
     paths = load_genome_paths(gfa)
     result = compare_paths(paths, "x", "y")
-    assert result.content.a.copy_bases == len(paths.spell("x").sequence) == 8
-    assert (result.content.shared_bases, result.content.union_bases) == (3, 10)
-    # A block weighs the smaller of its two sides, so chains never exceed content.
-    assert result.blocks[0].bases == 3
+    # Both segments are content in full; the path spells 8 of those 10 bases.
+    assert len(paths.spell("x").sequence) == 8
+    assert result.content.a.copy_bases == 10
+    assert (result.content.shared_bases, result.content.union_bases) == (5, 10)
+    assert result.blocks[0].bases == 5
     assert result.collinear.bases <= result.content.shared_bases
-    # The reverse-complement traversal loses the same forward-strand bases.
+    # The reverse-complement traversal has the same content.
     strand = compare_paths(paths, "x", "z", orientation="both")
     assert strand.content.jaccard == 1
-    assert strand.reverse_collinear.bases == 8
+    assert strand.reverse_collinear.bases == 10
     assert strand.reverse_collinear.fraction_a == 1
-    # The matrix sweep for partial coverage agrees with the pairwise result.
     _, details = shared_content_matrix(paths)
-    assert details["shared"].tolist() == [[8, 3, 8], [3, 5, 3], [8, 3, 8]]
+    assert details["shared"].tolist() == [[10, 5, 10], [5, 5, 5], [10, 5, 10]]
 
 
-def test_rotated_circular_overlap_graph_matches_itself(tmp_path):
-    gfa = tmp_path / "ring.gfa"
-    gfa.write_text(
+def test_content_with_overlaps_ignores_names_and_rotation(tmp_path):
+    text = (
         "S\ta\tACGTA\nS\tb\tTACCG\nS\tc\tCGGAC\n"
         "L\ta\t+\tb\t+\t2M\nL\tb\t+\tc\t+\t2M\nL\tc\t+\ta\t+\t2M\n"
-        "P\tx\ta+,b+,c+\t*\nP\ty\tb+,c+,a+\t*\n"
+        "L\ta\t+\tc\t-\t1M\n"
+        "P\tx\ta+,b+,c+\t*\nP\ty\tb+,c+,a+\t*\nP\tw\ta+,c-\t*\n"
     )
+    gfa = tmp_path / "ring.gfa"
+    gfa.write_text(text)
     paths = load_genome_paths(gfa)
     ring = compare_paths(paths, "x", "y", circular=True)
-    assert ring.content.jaccard == 1 and ring.content.a_bases == 9
-    assert ring.collinear.bases == 9 and ring.collinear.fraction_a == 1
+    assert ring.content.jaccard == 1 and ring.content.a_bases == 15
+    assert ring.collinear.bases == 15 and ring.collinear.fraction_a == 1
     linear = compare_paths(paths, "x", "y")
     assert linear.collinear.bases <= linear.content.shared_bases
-    _, details = shared_content_matrix(paths, circular=True)
-    assert details["jaccard"][0, 1] == 1
+    # Renaming so that the name order of a and c reverses changes nothing.
+    reordered = tmp_path / "reordered.gfa"
+    lines = text.splitlines(keepends=True)
+    reordered.write_text("".join(lines[2::-1] + lines[3:]))
+    renamed = tmp_path / "renamed.gfa"
+    mapping = rename(reordered, renamed, prefix="z")
+    assert mapping == {"c": "z1", "b": "z2", "a": "z3"}
+    _, before = shared_content_matrix(paths)
+    _, after = shared_content_matrix(load_genome_paths(renamed))
+    assert before["shared"].tolist() == after["shared"].tolist()
+    moved = compare_paths(load_genome_paths(renamed), "x", "w")
+    assert moved.content.jaccard == compare_paths(paths, "x", "w").content.jaccard
 
 
 def test_chains_never_exceed_shared_content(tmp_path):

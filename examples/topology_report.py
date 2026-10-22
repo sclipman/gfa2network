@@ -151,6 +151,8 @@ def main(argv=None):
     )
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
+    if not args.labels and not args.label_regex:
+        parser.error("group labels are required: --labels or --label-regex")
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
@@ -189,6 +191,7 @@ def main(argv=None):
         unknown_overlap=args.unknown_overlap,
     )
     classes, examples = Counter(), {}
+    audited = {item.name: item for item in report.paths}
     for name in selected:
         spelled = paths.spell(name, unknown_overlap=args.unknown_overlap).sequence
         reference = references.get(mapping[name])
@@ -196,6 +199,15 @@ def main(argv=None):
             label = "not_spelled" if spelled is None else "no_reference"
         else:
             label = classify(spelled, reference, args.circular)
+            item = audited.get(name)
+            if (
+                label not in ("identical", "ambiguity_codes_only")
+                and item
+                and item.passed
+            ):
+                # The audit applies policies classify() does not repeat, such
+                # as trimming an evidenced circular closing overlap.
+                label = item.comparison
         classes[label] += 1
         examples.setdefault(label, name)
     fidelity = {
@@ -254,6 +266,8 @@ def main(argv=None):
 
     def measures(collection, gfa_path):
         result = {}
+        if len(subset) < 2:
+            return result, None
         for i, a in enumerate(subset):
             for b in subset[i + 1 :]:
                 pair = compare_paths(
@@ -309,8 +323,9 @@ def main(argv=None):
         )
         item["kmer_jaccard"] = k
         table.append(item)
+        content_value = "NA" if item["jaccard"] is None else f"{item['jaccard']:.6g}"
         lines.append(
-            f"{a}\t{groups[a]}\t{b}\t{groups[b]}\t{item['jaccard']:.6g}\t{item['collinear_bases']}\t"
+            f"{a}\t{groups[a]}\t{b}\t{groups[b]}\t{content_value}\t{item['collinear_bases']}\t"
             f"{item['collinear_fraction']:.6g}\t{item['collinear_orientation']}\t"
             f"{item['connectivity_hops'] if item['connectivity_hops'] is not None else 'inf'}\t{k:.6g}"
         )
@@ -436,13 +451,18 @@ def main(argv=None):
                 continue
             changed = load_genome_paths(target)
             result, count = measures(changed, target)
-            dj = (
-                max(
-                    abs(result[p]["jaccard"] - original[p]["jaccard"]) for p in original
-                )
-                if original
-                else 0
-            )
+            diffs = [
+                abs(result[p]["jaccard"] - original[p]["jaccard"])
+                for p in original
+                if result[p]["jaccard"] is not None
+                and original[p]["jaccard"] is not None
+            ]
+            if any(
+                (result[p]["jaccard"] is None) != (original[p]["jaccard"] is None)
+                for p in original
+            ):
+                diffs.append(math.inf)
+            dj = max(diffs) if diffs else 0
             dc = (
                 max(
                     abs(result[p]["collinear_bases"] - original[p]["collinear_bases"])
@@ -460,7 +480,12 @@ def main(argv=None):
             ]
             moved = sorted(
                 b.bases or 0
-                for b in bridge_blocks(changed, groups, min_bases=args.min_bases)
+                for b in bridge_blocks(
+                    changed,
+                    groups,
+                    min_bases=args.min_bases,
+                    unknown_overlap=args.unknown_overlap,
+                )
             )
             sensitivity.append(
                 f"{label}\t{count}\t{dj:.3g}\t{dc}\t{max(ratios) if ratios else 0:.3g}\t{moved == bridge_bases}"

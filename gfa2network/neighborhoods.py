@@ -1,15 +1,20 @@
 """Shared blocks that connect labeled groups of genome paths.
 
 Given a label for each path (for example a taxonomic group supplied from
-outside the graph), a *bridge block* is a run of consecutive steps that paths
-from at least ``min_groups`` groups traverse contiguously. A run extends while
-every step-to-step adjacency inside it is traversed (in either strand) by
-exactly the same set of paths, so each member path reads the whole block as
-contiguous sequence; a single step forms a block when its segment is visited by
-paths of enough groups. Paths that only visit some of a block's segments, or
-visit them in another arrangement, are not members. Each segment belongs to at
-most one block; paths are walked in the given order, so the first path to reach
-a segment fixes the block's reference direction.
+outside the graph), a *bridge block* is a maximal run of consecutive segments in
+some path such that every segment is visited by exactly the same labeled paths,
+every link between them is traversed (in either strand) by exactly those paths,
+and the paths span at least ``min_groups`` groups. Because the bases inside a
+segment are always shared by all of its visitors, the blocks are the same
+whether a sequence is stored as one segment or split into pieces. Members are
+the paths that read the whole block contiguously; paths that meet the counts
+but read the segments in another arrangement (for example by revisiting a
+segment) are listed as ``partial``. Each segment belongs to at most one block;
+paths are walked in file order, so the first path to reach a segment fixes the
+block's reference direction. When too few groups read a run contiguously, its
+first segment becomes a block on its own and the rest of the run is walked
+again, so shared segments are never dropped; with repeated segments, where such
+a run splits can depend on path order.
 
 For every path traversing a block the result gives a witness (steps and
 coordinates, reversed if the path reads the block on the other strand) and the
@@ -125,8 +130,9 @@ def bridge_blocks(
     def enough(members):
         return len({groups[n] for n in members}) >= min_groups
 
+    index = {name: _positions(tokens[name]) for name in names}
     assigned = set()
-    blocks = []
+    results = []
     for name in names:
         walk, layout = tokens[name], layouts[name]
         i = 0
@@ -134,40 +140,34 @@ def bridge_blocks(
             if walk[i][0] in assigned:
                 i += 1
                 continue
-            run, members = [i], None
+            run = [i]
+            members = support(visits[walk[i][0]])
+            if not enough(members):
+                i += 1
+                continue
             j = i + 1
             while (
                 j < len(walk)
                 and layout.contiguous[j]
                 and walk[j][0] not in assigned
                 and all(walk[j][0] != walk[k][0] for k in run)
+                and support(visits[walk[j][0]]) == members
+                and support(adjacent[_adjacency(walk[j - 1], walk[j])]) == members
             ):
-                shared = support(adjacent[_adjacency(walk[j - 1], walk[j])])
-                if members is None:
-                    if not enough(shared):
-                        break
-                    members = shared
-                elif shared != members:
-                    break
                 run.append(j)
                 j += 1
-            if members is None:
-                members = support(visits[walk[i][0]])
-            if enough(members):
-                blocks.append((name, run, members))
-                assigned.update(walk[k][0] for k in run)
-                i = run[-1] + 1
-            else:
-                i += 1
-    index = {name: _positions(tokens[name]) for name in names}
-    results = []
-    for reference, run, members in blocks:
-        block = _describe(paths, layouts, groups, reference, run, members, index)
-        if min_bases and (block.bases is None or block.bases < min_bases):
-            continue
-        if len(block.groups) < min_groups:
-            continue  # enough groups only among non-contiguous visitors
-        results.append(block)
+            block = _describe(paths, layouts, groups, name, run, members, index)
+            if len(block.groups) < min_groups:
+                # Too few groups read the whole run contiguously. Every
+                # visitor reads a single segment, so keep the first step and
+                # let the rest of the run start new blocks.
+                run = [i]
+                block = _describe(paths, layouts, groups, name, run, members, index)
+            assigned.update(walk[k][0] for k in run)
+            i = run[-1] + 1
+            if min_bases and (block.bases is None or block.bases < min_bases):
+                continue
+            results.append(block)
     results.sort(key=lambda b: (-len(b.groups), -(b.bases or 0), b.segments))
     return results
 

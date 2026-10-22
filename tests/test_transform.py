@@ -71,6 +71,22 @@ def test_transforms_refuse_what_they_cannot_preserve(tmp_path):
     for transform in (chop, rename):
         with pytest.raises(ValueError, match="E records are not supported"):
             transform(gfa2, tmp_path / "y.gfa", *((2,) if transform is chop else ()))
+    mixed = tmp_path / "mixed.gfa"
+    mixed.write_text(
+        "S\ta\tACGT\nS\tb\tTTTT\nS\tc\tGGGG\nL\ta\t+\tb\t+\t*\n"
+        "L\tb\t+\tc\t+\t0M\nP\tp\ta+,b+,c+\t*,0M\n"
+    )
+    chop(mixed, tmp_path / "mixed_out.gfa", 2)
+    before = load_genome_paths(mixed).spell("p")
+    after = load_genome_paths(tmp_path / "mixed_out.gfa").spell("p")
+    # The unspecified a->b overlap stays unspecified, so spelling still abstains.
+    assert before.status == after.status == "partial"
+    assert [p.sequence for p in after.pieces] == [b"ACGT", b"TTTTGGGG"]
+    assert "\t0M,*,0M,0M,0M\n" in (tmp_path / "mixed_out.gfa").read_text()
+    malformed = tmp_path / "malformed.gfa"
+    malformed.write_text("S\ta\tACGT\nS\tb\tTT\nP\tp\ta+,b+\t0M,0M\n")
+    with pytest.raises(ValueError, match="one overlap per transition"):
+        chop(malformed, tmp_path / "m.gfa", 2)
     clash = tmp_path / "clash.gfa"
     clash.write_text("S\ta\tACGT\nS\ta.1\tA\n")
     with pytest.raises(ValueError, match="already exists"):
