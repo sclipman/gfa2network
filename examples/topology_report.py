@@ -230,7 +230,6 @@ def main(argv=None):
         paths,
         labeled,
         unknown_overlap=args.unknown_overlap,
-        circular=args.circular,
     )
     index = defaultdict(list)
     for i, name in enumerate(labeled):
