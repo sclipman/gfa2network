@@ -92,7 +92,15 @@ def parse_gfa(
     When the bidirected representation is kept directed, distances should be
     computed on ``G.to_undirected()`` as orientation is ignored.
     """
+    if backend not in {"networkx", "igraph"}:
+        raise ValueError(f"unknown backend: {backend}")
+    if return_node_list and not build_matrix:
+        raise ValueError("return_node_list requires build_matrix=True")
     if backend == "igraph":
+        if split_on_alignment:
+            raise ValueError("split_on_alignment is not supported by the igraph backend")
+        if raw_bytes_id:
+            raise ValueError("raw_bytes_id is not supported by the igraph backend")
         return parse_gfa_igraph(
             path,
             build_graph=build_graph,
@@ -106,6 +114,8 @@ def parse_gfa(
             bidirected=bidirected,
             keep_directed_bidir=keep_directed_bidir,
             return_node_list=return_node_list,
+            dtype=dtype,
+            asymmetric=asymmetric,
         )
     if split_on_alignment:
         return _parse_gfa_split(
@@ -126,8 +136,6 @@ def parse_gfa(
             return_node_list=return_node_list,
             max_tag_mb=max_tag_mb,
         )
-    if return_node_list and not build_matrix:
-        raise ValueError("return_node_list requires build_matrix=True")
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
     if store_seq and not build_graph:

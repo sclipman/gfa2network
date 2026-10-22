@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> None:
     g4.add_argument("--undirected", dest="directed", action="store_false")
     p_dist.add_argument(
         "--backend",
-        choices=["networkx", "igraph"],
+        choices=["networkx"],
         default="networkx",
         help="Graph backend to use",
     )
@@ -182,11 +182,18 @@ def main(argv: list[str] | None = None) -> None:
     p_dm.add_argument("--method", choices=["min", "mean"], default="min")
     p_dm.add_argument(
         "--backend",
-        choices=["networkx", "igraph"],
+        choices=["networkx"],
         default="networkx",
         help="Graph backend to use",
     )
     p_dm.add_argument("--verbose", action="store_true")
+
+    # Accept shared options on either side of a subcommand. Suppressed defaults
+    # ensure a subparser does not overwrite an option already parsed at the root.
+    for command in (p_conv, p_exp, p_stats, p_dist, p_dm):
+        command.add_argument("--raw-bytes-id", action="store_true", default=argparse.SUPPRESS)
+        command.add_argument("--max-dense-gb", type=float, default=argparse.SUPPRESS)
+        command.add_argument("--max-tag-mb", type=float, default=argparse.SUPPRESS)
 
     args = parser.parse_args(argv)
 
@@ -292,9 +299,15 @@ def main(argv: list[str] | None = None) -> None:
                 max_tag_mb=args.max_tag_mb,
             )
             if parser_format == "graphml":
-                nx.write_graphml(G, args.output)
+                if args.output == "-":
+                    print("\n".join(nx.generate_graphml(G)))
+                else:
+                    nx.write_graphml(G, args.output)
             elif parser_format == "gexf":
-                nx.write_gexf(G, args.output)
+                if args.output == "-":
+                    print("\n".join(nx.generate_gexf(G)))
+                else:
+                    nx.write_gexf(G, args.output)
             elif parser_format == "json":
                 import json
 
@@ -361,7 +374,7 @@ def main(argv: list[str] | None = None) -> None:
             )
         except MemoryError as exc:
             raise SystemExit(str(exc)) from exc
-    elif args.cmd == "stats":
+    elif args.cmd in {"stats", "stat"}:
         stats = compute_stats(
             args.gfa,
             directed=args.directed,

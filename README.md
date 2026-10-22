@@ -7,7 +7,7 @@
     style="margin-right:10px;"/>
 </p>
 
-# GFA2Network: Memory-efficient GFA→Graph Converter
+# GFA2Network: Streaming GFA→Graph Converter
 
 **GFA2Network** is a small Python library that converts
 [GFA-1](https://github.com/GFA-spec/GFA-spec) and
@@ -15,24 +15,25 @@
 convenient in-memory representations.  GFA (Graphical Fragment Assembly) is a
 common exchange format for pangenome graphs.  This package reads those graphs in
 a streaming fashion and exposes them either as a `networkx` graph object or as a
-SciPy sparse adjacency matrix.  Even multi-million node graphs can be handled on
-ordinary hardware because memory consumption grows roughly with the number of
-edges.
+SciPy sparse adjacency matrix. The resulting graph or matrix remains in memory;
+the parser does not load the complete input text at once.
 
 The command **gfa2network** can build:
 
 - a `networkx.Graph` / `DiGraph`, and/or
 - a SciPy sparse adjacency matrix.
 
-It reads the input file in a single pass and keeps memory usage roughly
-proportional to the number of edges, so multi‑million node graphs can be
-processed on ordinary hardware.
+Ordinary conversion reads the input once and uses memory proportional to stored
+nodes, edges, and optional metadata: O(V + E), plus sequence and tag payloads.
+Alignment splitting retains additional records. Distance analysis reads the file
+more than once and has additional memory costs described below. Large-graph
+capacity depends on the backend, topology, metadata, and available memory.
 
 ## Features
 
 - Handles GFA‑1 and GFA‑2 link syntax
 - Build directed or undirected graphs
-- Stream parsing keeps memory proportional to edge count
+- Streaming input with O(V + E) graph storage, plus optional metadata
 - Optional edge weights from a tag (e.g. `RC`)
 - Optional sequence storage on nodes
 - Adjacency matrices in several sparse formats
@@ -40,12 +41,11 @@ processed on ordinary hardware.
 - Bidirected graph representation via `--bidirected`
 - Alignment-aware splitting via `--split-on-alignment`
   (may increase memory usage; a warning is shown if >10× nodes are created)
-- Compute shortest path distances between sequences or genomes
+- Compute graph distances between stored sequences or path node sets
 - `distance` subcommand to query sequences or paths
 - `distance-matrix` subcommand to compute pairwise path distances
 - Export edges to various formats with the `export` subcommand
 - Transparent support for gzip-compressed input files (`*.gfa.gz`)
-- Shortest path distances between sequences or whole genomes
 
 The adjacency matrix can be written in several SciPy sparse representations:
 
@@ -64,7 +64,7 @@ The repository ships with a real world test graph,
 or run the unit tests:
 
 ```bash
-gfa2network tests/data/DRB1-3123_unsorted.gfa \
+gfa2network convert tests/data/DRB1-3123_unsorted.gfa \
     --graph --matrix drb1.npz --verbose
 ```
 
@@ -113,18 +113,18 @@ This project targets Python 3.8 or later and depends on the following packages:
 - Only need **basic connectivity** (nodes and edges) rather than full GFA compliance  
 - Want to apply **custom NetworkX algorithms** (centrality, clustering, shortest paths) without learning a new C++ API  
 - Prefer a **sparse-matrix view** (SciPy) for downstream analyses (PCA, distance-based clustering)  
-- Need to process **million-node graphs** on standard hardware in a **single pass**  
+- Want to convert supported records without retaining the complete input text
 
 ### Key Benefits of GFA2Network
 
 - **Streaming & low memory overhead**  
-  Parses multi-gigabyte GFAs without loading the entire file into RAM; memory scales with the number of edges only.  
+  Reads records incrementally; memory includes nodes, edges, and stored metadata.
 - **Native Python graph objects**  
   Outputs `networkx.Graph` or SciPy sparse matrix out of the box; optional igraph backend for C-level performance.  
 - **Flexible metadata support**  
   Attach sequences or tag dictionaries as node/edge attributes for richer analyses in pandas, scikit-learn, etc.  
 - **Minimal, common dependencies**  
-  Installable via `pip install gfa2network`; extra features (e.g. `python-igraph`, `tqdm`) are optional.  
+  Installable from GitHub; extra features (e.g. `python-igraph`, `tqdm`) are optional.
 - **Seamless integration**  
   Combine with any Python data-science stack—no heavyweight toolkit required.  
 
@@ -199,11 +199,17 @@ See `gfa2network -h` for all command line options.
 | `--max-tag-mb N`   | Warn when stored tags exceed N MB |
 | `--version`        | Print package version |
 
-`--store-seq` may drastically increase memory usage. The parser will warn when the
-stored sequences exceed half of the available RAM. The flag is ignored when only
-`--matrix` is requested. The `--store-tags` option adds tag dictionaries and
-segment lengths to the graph. A `RuntimeWarning` is emitted when the stored tags
-exceed the threshold from `--max-tag-mb` (default 100&nbsp;MB).
+Shared options `--raw-bytes-id`, `--max-dense-gb`, and `--max-tag-mb` can be
+placed before or after the subcommand. The igraph backend rejects
+`--split-on-alignment` and `--raw-bytes-id`, which it does not implement.
+
+`--store-seq` may drastically increase memory usage. For NetworkX conversion,
+`--verbose` can report stored sequence payloads exceeding half of the available
+RAM on Linux. This estimates payload size, rather than total process memory.
+The flag is ignored when only `--matrix` is requested. The `--store-tags` option
+adds tag dictionaries and segment lengths to the graph. The NetworkX backend
+emits a `RuntimeWarning` when estimated stored tags exceed `--max-tag-mb`
+(default 100&nbsp;MB); this threshold is not implemented by the igraph backend.
 
 ## Using in Python
 
@@ -226,7 +232,9 @@ G_tags = parse_gfa("input.gfa", build_graph=True, build_matrix=False, store_tags
 Additional helpers are provided in ``gfa2network.analysis``:
 
 ```python
-from gfa2network.analysis import sequence_distance, genome_distance, load_paths
+from gfa2network.analysis import (
+    sequence_distance, genome_distance, genome_distance_matrix, load_paths,
+)
 
 # Distance between two sequences stored on nodes
 dist = sequence_distance(G_seq, "ACGT", "TTTT")
@@ -245,15 +253,30 @@ sets and calculates either the minimal or mean distance (``method="min"`` or
 ``"mean"``).  The helper ``load_paths`` reads ``P`` or ``O`` records from a GFA
 file and maps path names to node lists for convenient lookup. ``genome_distance_matrix``
 computes all pairwise distances between paths and returns a matrix or dataframe.
-The matrix is derived from a cached multi-source Dijkstra search for each path,
-so runtime grows roughly linearly with the number of paths.  ``--method mean``
-averages the node-to-path distances using the same cache.
+Distance helpers currently require NetworkX. igraph is supported for conversion.
 
 ### Distance matrix
 
-``genome_distance_matrix`` reuses one multi-source Dijkstra search per path. The
-``mean`` method still performs ``|A| × |B|`` shortest path computations. A
-warning is emitted when more than 1000 node pairs are examined:
+``genome_distance_matrix`` builds an undirected graph and reuses one multi-source
+Dijkstra search per path. With P paths and V nodes, the distance cache can occupy
+O(PV) memory, in addition to the O(P²) output and graph storage. Pair aggregation
+also depends on path lengths; total runtime is not linear in P.
+
+The two existing ``mean`` methods have different definitions:
+
+- ``genome_distance(..., method="mean")`` averages all reachable node pairs.
+- ``genome_distance_matrix(..., method="mean")`` averages distances from each
+  node to the nearest node of the other path, in both directions.
+
+Both exclude unreachable contributions, which can hide disconnected portions
+of paths. These are graph topology summaries; a minimum distance of zero means
+the paths share a node and does not establish sequence identity. Path order,
+alignment, and nucleotide substitution are not represented by this calculation.
+Repeated nodes can contribute multiple times to means. ``min`` and ``mean`` are not validated genomic divergence
+measures. Matrix diagonals are set to zero by convention.
+
+``genome_distance`` with ``method="mean"`` performs ``|A| × |B|`` shortest path
+computations. A warning is emitted when more than 1000 node pairs are examined:
 
 ```python
 >>> genome_distance(G, nodes_a, nodes_b, method="mean")
@@ -288,8 +311,9 @@ matrix into CSR/CSC/DOK formats.
 The resulting graphs drop any absolute coordinates from the GFA file and
 encode only connectivity.  When ``--bidirected`` is used, segment
 identifiers are expanded to ``<id>:+`` and ``<id>:-`` so that each node
-represents a specific orientation.  The distance utilities operate on the
-undirected topology and ignore coordinates.  If you build a directed
+represents a specific orientation. Distance matrices use undirected topology
+and ignore coordinates. The graph-based helpers respect the direction of the
+supplied graph. If you build a directed
 graph (for example with ``--keep-directed-bidir``), convert it to an
 undirected one via ``G = G.to_undirected()`` before calling the
 distance helpers.
@@ -303,6 +327,24 @@ is preserved.  The option `--strip-orientation` reproduces the historic
 behaviour of discarding these signs.  All additional GFA tags are collected into
 a dictionary, enabling the use of numeric tags as edge weights via the
 `--weight-tag` option.
+
+GFA2 `E` records use two oriented references followed by four coordinates;
+terminal `$` coordinate markers are accepted. The historical nonstandard edge
+layouts remain accepted for compatibility. GFA2 `O` records use **space-separated**
+references; convert older comma-separated `O` records to the standard layout.
+GFA1 `P` records continue to use commas. GFA1.1 `W` walks and gap/jump records
+are currently unsupported and should not be relied on for path analysis.
+
+Alignment splitting remains experimental. It can discard sequence/tag metadata,
+misplace links when a segment has multiple subintervals, and create extra
+unoriented vertices when combined with `--bidirected`. Avoid using these
+combinations for downstream analysis until the splitting implementation is
+reworked and independently checked.
+
+Repeated links are currently handled differently by simple NetworkX graphs and
+sparse matrices: a graph retains one edge while COO entries are summed when
+converted to CSR. Choose inputs without repeated links when comparing these
+representations until a shared aggregation policy is implemented.
 
 ## Output
 

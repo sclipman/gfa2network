@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+- Parse standard GFA2 edge columns, terminal `$` coordinates, and space-separated
+  ordered groups; preserve identifier suffixes and handle CRLF input.
+- Infer GFA1 segment lengths, recognize absent sequences, and retain containment
+  positions/CIGARs and typed numeric arrays.
+- Check the full dense allocation before export; support dense distance matrices
+  and DOK input when saving sparse NPZ files.
+- Repair igraph reverse-complement vertex naming, metadata on unsorted input,
+  adjacency export, matrix dtype, and symmetry options. Reject unsupported igraph
+  alignment splitting and byte IDs explicitly.
+- Accept shared CLI options after subcommands, repair the `stat` alias, and write
+  GraphML/GEXF to stdout when requested.
+- Build distance matrices on undirected topology so path record order does not
+  change their values. Validate method names and clearly restrict distance
+  helpers to NetworkX until native igraph analysis is implemented.
+- Add specification-based regression cases and a CI matrix; skip optional large
+  fixtures when absent. Document remaining splitting and distance limitations.
+
 ## v0.12.0
 - Added `--split-on-alignment` option to split segments at alignment
   boundaries. Emits a warning if the number of sub-nodes exceeds 10× the

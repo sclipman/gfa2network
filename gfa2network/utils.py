@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import time
+import math
 from pathlib import Path
 from typing import Sequence
 
@@ -67,13 +68,18 @@ def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5
     """Write *A* to *dest* with progress bar and dense-size guard."""
     if not _HAS_SCIPY:
         raise RuntimeError("SciPy required for matrix output")
+    if not math.isfinite(max_dense_gb) or max_dense_gb < 0:
+        raise ValueError("max_dense_gb must be finite and nonnegative")
     MAX_DENSE_BYTES = max_dense_gb * 1_000_000_000
     if dest.suffix in {".csv", ".npy"}:
-        nnz = A.nnz if sp.issparse(A) else A.size
-        itemsize = A.dtype.itemsize if hasattr(A, "dtype") else 8
-        if nnz * itemsize > MAX_DENSE_BYTES:
+        import numpy as np
+
+        if not sp.issparse(A):
+            A = np.asarray(A)
+        dense_bytes = math.prod(A.shape) * A.dtype.itemsize
+        if dense_bytes > MAX_DENSE_BYTES:
             raise MemoryError(
-                f"dense export would allocate {nnz*itemsize/1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
+                f"dense export would allocate {dense_bytes/1e9:.1f} GB; choose a sparse .npz or write an edge list instead"
             )
     if verbose:
         msg = f"[save] {dest.suffix[1:]} → {dest}"
@@ -83,6 +89,10 @@ def save_matrix(A, dest: Path, *, verbose: bool = False, max_dense_gb: float = 5
             start = time.perf_counter()
             print(msg, "...", end="", file=sys.stderr, flush=True)
     if dest.suffix == ".npz":
+        if not sp.issparse(A):
+            A = sp.csr_matrix(A)
+        elif A.format not in {"csr", "csc", "bsr", "dia", "coo"}:
+            A = A.tocsr()
         sp.save_npz(dest, A)
     elif dest.suffix == ".npy":
         import numpy as np

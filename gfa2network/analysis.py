@@ -18,6 +18,8 @@ from .parser import GFAParser, PathRecord, WalkRecord
 
 def _warn_directed_bidirected(G: nx.Graph) -> None:
     """Issue a warning if *G* is a directed bidirected graph."""
+    if not isinstance(G, nx.Graph):
+        raise TypeError("distance helpers require a NetworkX graph")
     if G.is_directed():
         for n in G.nodes:
             s = n.decode() if isinstance(n, (bytes, bytearray)) else str(n)
@@ -68,8 +70,8 @@ def compute_stats(
 def sequence_distance(G: nx.Graph, seq_a: str | bytes, seq_b: str | bytes) -> float:
     """Return the shortest path length between two sequences.
 
-    Orientation information is ignored.  If ``G`` was built using the
-    bidirected representation, convert it to an undirected graph with
+    Coordinates are ignored; the supplied graph's direction is respected.
+    For undirected distances, convert it to an undirected graph with
     ``G.to_undirected()`` before calling this function.
 
     Parameters
@@ -122,7 +124,7 @@ def genome_distance(
 ) -> float:
     """Calculate distance between two sets of nodes.
 
-    Orientation of nodes is ignored.  ``method`` can be ``"min"`` (default)
+    The supplied graph's direction is respected. ``method`` can be ``"min"`` (default)
     to return the minimal distance or ``"mean"`` to average all pairwise
     distances between reachable nodes.  Convert bidirected graphs to
     undirected before calling this function.
@@ -187,8 +189,10 @@ def genome_distance_matrix(
 ):
     """Return pairwise distances between all paths in *gfa_path*.
 
-    The function loads path definitions, builds the graph and computes
-    distances between every pair of paths using :func:`genome_distance`.
+    The function loads path definitions and builds an undirected graph.
+    ``min`` is the smallest node-to-node distance. ``mean`` averages distances
+    to the nearest node of the other path in both directions, which differs
+    from the all-pairs mean calculated by :func:`genome_distance`.
 
     Parameters
     ----------
@@ -198,7 +202,7 @@ def genome_distance_matrix(
         Distance aggregation method (``"min"`` or ``"mean"``), by default
         ``"min"``.
     backend : str, optional
-        ``"networkx"`` (default) or ``"igraph"``.
+        ``"networkx"``. Native igraph distance analysis is not implemented.
     verbose : bool, optional
         Emit progress information while parsing.
 
@@ -210,9 +214,14 @@ def genome_distance_matrix(
 
     Notes
     -----
-    Orientation is ignored when computing distances.  Convert bidirected
-    graphs to undirected first to avoid unexpected results.
+    Distances use undirected topology. The cached searches can occupy O(PV)
+    memory for P paths and V vertices, in addition to the O(P²) output.
     """
+
+    if method not in {"min", "mean"}:
+        raise ValueError(f"unknown method: {method}")
+    if backend != "networkx":
+        raise ValueError("distance matrices currently require the NetworkX backend")
 
     paths = load_paths(gfa_path, raw_bytes=raw_bytes_id)
     names = list(paths)
@@ -224,6 +233,7 @@ def genome_distance_matrix(
         raw_bytes_id=raw_bytes_id,
         backend=backend,
         verbose=verbose,
+        directed=False,
     )
     _warn_directed_bidirected(G)
 

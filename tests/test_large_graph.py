@@ -8,7 +8,7 @@ from gfa2network import parse_gfa
 LARGE_GRAPH_PATH = Path(os.environ.get("LARGE_GRAPH", ""))
 
 
-@pytest.mark.skipif(not LARGE_GRAPH_PATH.exists(), reason="large graph not available")
+@pytest.mark.skipif(not LARGE_GRAPH_PATH.is_file(), reason="large graph not available")
 def test_parse_large_graph_verbose(capsys):
     parse_gfa(LARGE_GRAPH_PATH, build_graph=False, build_matrix=False, verbose=True)
     captured = capsys.readouterr()
@@ -16,8 +16,9 @@ def test_parse_large_graph_verbose(capsys):
     assert "lines]" in captured.err
 
 
-@pytest.mark.skipif(not LARGE_GRAPH_PATH.exists(), reason="large graph not available")
+@pytest.mark.skipif(not LARGE_GRAPH_PATH.is_file(), reason="large graph not available")
 def test_igraph_backend_verbose(capsys):
+    pytest.importorskip("igraph")
     parse_gfa(
         LARGE_GRAPH_PATH,
         build_graph=False,

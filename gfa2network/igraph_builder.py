@@ -56,13 +56,15 @@ class IGraphBuilder:
             self.graph.add_vertex(name=name)  # type: ignore[union-attr]
             idx = self.graph.vcount() - 1  # type: ignore[union-attr]
             self._node_index[node] = idx
-            if seg is not None:
-                if self.store_tags and seg.length is not None:
-                    self.graph.vs[idx]["length"] = seg.length  # type: ignore[union-attr]
-                if self.store_seq and seg.sequence is not None:
-                    self.graph.vs[idx]["sequence"] = seg.sequence  # type: ignore[union-attr]
-                if self.store_tags and seg.tags:
-                    self.graph.vs[idx]["tags"] = seg.tags  # type: ignore[union-attr]
+        # Links can precede S records. Populate metadata even if a link already
+        # created this vertex.
+        if seg is not None:
+            if self.store_tags and seg.length is not None:
+                self.graph.vs[idx]["length"] = seg.length  # type: ignore[union-attr]
+            if self.store_seq and seg.sequence is not None:
+                self.graph.vs[idx]["sequence"] = seg.sequence  # type: ignore[union-attr]
+            if self.store_tags and seg.tags:
+                self.graph.vs[idx]["tags"] = seg.tags  # type: ignore[union-attr]
         return idx
 
     # ------------------------------------------------------------------
@@ -82,10 +84,12 @@ class IGraphBuilder:
             u = u.rstrip(b"+-")
             v = v.rstrip(b"+-")
         if self.bidirected:
-            u = u + b":" + rec.orientation_from.encode()
-            v = v + b":" + rec.orientation_to.encode()
-        idx_u = self._add_vertex(u)
-        idx_v = self._add_vertex(v)
+            u_node = u + b":" + rec.orientation_from.encode()
+            v_node = v + b":" + rec.orientation_to.encode()
+        else:
+            u_node, v_node = u, v
+        idx_u = self._add_vertex(u_node)
+        idx_v = self._add_vertex(v_node)
         attrs: dict[str, object] = {}
         if not self.strip_orientation and not self.bidirected:
             attrs["orientation_from"] = rec.orientation_from
@@ -97,8 +101,7 @@ class IGraphBuilder:
             val = rec.tags[self.weight_tag]
             if isinstance(val, (int, float)):
                 w = float(val)
-        if w is not None:
-            attrs["weight"] = w
+        attrs["weight"] = 1.0 if w is None else w
         self.graph.add_edge(idx_u, idx_v, **attrs)  # type: ignore[union-attr]
         if self.bidirected and not self.keep_directed_bidir:
             rev_from = "-" if rec.orientation_from == "+" else "+"
@@ -114,7 +117,8 @@ class IGraphBuilder:
         """Return the adjacency matrix of the built graph."""
         if not _HAS_SCIPY:
             raise RuntimeError("Matrix output requires SciPy")
-        return self.graph.get_adjacency_sparse(attribute="weight", default=1.0)  # type: ignore[union-attr]
+        attribute = "weight" if "weight" in self.graph.edge_attributes() else None
+        return self.graph.get_adjacency_sparse(attribute=attribute)  # type: ignore[union-attr]
 
 
 # ----------------------------------------------------------------------
@@ -135,6 +139,8 @@ def parse_gfa_igraph(
     keep_directed_bidir: bool = False,
     return_node_list: bool = False,
     progress_step: int = 500_000,
+    dtype: str | object = "float64",
+    asymmetric: bool = False,
 ) -> ig.Graph | "sp.spmatrix" | tuple[ig.Graph, "sp.spmatrix"] | None:
     """Parse *path* and return an igraph graph and/or a sparse matrix.
 
@@ -148,14 +154,18 @@ def parse_gfa_igraph(
         raise RuntimeError("python-igraph is not available")
     if build_matrix and not _HAS_SCIPY:
         raise RuntimeError("Matrix output requires SciPy")
+    if return_node_list and not build_matrix:
+        raise ValueError("return_node_list requires build_matrix=True")
+    if progress_step <= 0:
+        raise ValueError("progress_step must be positive")
 
     builder: IGraphBuilder | None = None
     if build_graph or build_matrix:
         builder = IGraphBuilder(
             directed=directed,
             weight_tag=weight_tag,
-            store_seq=store_seq,
-            store_tags=store_tags,
+            store_seq=store_seq and build_graph,
+            store_tags=store_tags and build_graph,
             strip_orientation=strip_orientation,
             bidirected=bidirected,
             keep_directed_bidir=keep_directed_bidir,
@@ -174,6 +184,10 @@ def parse_gfa_igraph(
 
     G = builder.graph if build_graph else None
     A = builder.to_matrix() if build_matrix else None
+    if A is not None:
+        A = A.astype(dtype)
+        if not asymmetric and builder.directed:
+            A = A.maximum(A.T)
     node_list = None
     if build_matrix and return_node_list:
         if G is not None:
