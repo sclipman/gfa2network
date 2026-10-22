@@ -607,6 +607,36 @@ class FidelityReport:
         }
 
 
+@dataclass(frozen=True)
+class PathLayout:
+    """Base accounting for each step of one path.
+
+    ``lengths[i]`` is the segment length (``None`` if unknown). ``overlaps[i]``
+    is the overlap with step ``i - 1`` in bases: 0 at the start and after a
+    jump or chunk boundary, ``None`` when the evidence does not determine it.
+    ``contiguous[i]`` says whether step ``i`` continues the sequence of step
+    ``i - 1`` (always false for step 0). ``starts[i]`` is where step ``i``'s
+    oriented sequence begins in ``coordinates`` (``source`` for W paths whose
+    chunks all have coordinates, otherwise ``path``), or ``None`` once unknown
+    lengths, overlaps or gaps make it unknown.
+    """
+
+    name: Name
+    coordinates: str
+    lengths: Tuple[Optional[int], ...]
+    overlaps: Tuple[Optional[int], ...]
+    contiguous: Tuple[bool, ...]
+    starts: Tuple[Optional[int], ...]
+    unknown_overlap: str
+
+    def contributes(self, index):
+        """Bases step ``index`` adds beyond its predecessor, or ``None``."""
+        length, overlap = self.lengths[index], self.overlaps[index]
+        if length is None:
+            return None
+        return length - (overlap or 0)
+
+
 class GenomePathSet(Mapping):
     """Read-only mapping of path name to :class:`GenomePath`.
 
@@ -644,6 +674,59 @@ class GenomePathSet(Mapping):
         """The legacy ``{name: [vertex, ...]}`` result for the same graph."""
         oriented = self.bidirected if oriented is None else oriented
         return {name: path.vertices(oriented) for name, path in self.items()}
+
+    def segment_length(self, segment):
+        """Length of a segment from its S record (``None`` if unknown)."""
+        return self._lengths.get(_raw(segment))
+
+    def layout(self, name, *, unknown_overlap="strict"):
+        """Per-step lengths, overlaps, contiguity and start coordinates.
+
+        Uses the same transition evidence as :meth:`spell`: a step continues
+        its predecessor only across a supported link whose overlap is exact
+        (or unspecified under ``unknown_overlap='zero'``), or across adjacent W
+        chunk coordinates.
+        """
+        if unknown_overlap not in OVERLAP_POLICIES:
+            raise ValueError("unknown_overlap must be strict or zero")
+        path = self[name]
+        coordinates = (
+            "source"
+            if path.record_type == "W"
+            and all(chunk.start is not None for chunk in path.chunks)
+            else "path"
+        )
+        lengths, overlaps, contiguous, starts = [], [], [], []
+        end = None
+        for step in path.steps:
+            chunk = path.chunks[step.chunk]
+            length = self.segment_length(step.segment)
+            if step.ordinal == 0:
+                overlap, joined = 0, False
+                start = chunk.start if coordinates == "source" else 0
+            else:
+                transition = path.transitions[step.ordinal - 1]
+                overlap, joined = _incoming(transition, path, step, unknown_overlap)
+                if coordinates == "source" and transition.status == "boundary":
+                    start = chunk.start
+                elif joined and end is not None:
+                    start = end - overlap
+                else:
+                    start = None
+            lengths.append(length)
+            overlaps.append(overlap)
+            contiguous.append(joined)
+            starts.append(start)
+            end = start + length if start is not None and length is not None else None
+        return PathLayout(
+            path.name,
+            coordinates,
+            tuple(lengths),
+            tuple(overlaps),
+            tuple(contiguous),
+            tuple(starts),
+            unknown_overlap,
+        )
 
     def _sequence(self, step):
         sequence = self._sequences.get(_raw(step.segment))
@@ -993,6 +1076,27 @@ class GenomePathSet(Mapping):
                     result.comparison, result.offset = "pieces_located", offsets[0]
                     return
         result.comparison = "pieces_unlocated"
+
+
+def _incoming(transition, path, step, policy):
+    """``(overlap, contiguous)`` for the transition into ``step``."""
+    if transition.status == "boundary":
+        before, after = path.chunks[step.chunk - 1], path.chunks[step.chunk]
+        adjacent = (
+            before.end is not None
+            and after.start is not None
+            and before.end == after.start
+        )
+        return 0, adjacent
+    if transition.status != "supported":
+        return None, False
+    if transition.relation == "jump":
+        return 0, False
+    if transition.overlap_state == "exact":
+        return transition.overlap_length, True
+    if transition.overlap_state == "unspecified" and policy == "zero":
+        return 0, True
+    return None, False
 
 
 def _bytes(value):

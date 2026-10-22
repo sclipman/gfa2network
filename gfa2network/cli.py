@@ -24,6 +24,7 @@ from .analysis import (
 )
 from .builders import parse_gfa
 from .genome_paths import OVERLAP_POLICIES, load_genome_paths
+from .path_compare import COPIES, MEASURES, compare_paths, shared_content_matrix
 from .projection import CLASSES, PROJECTIONS, export_manifest, resolve_projection
 from .utils import convert_format, save_matrix, save_node_map
 from .version import __version__
@@ -269,7 +270,36 @@ def _run(argv):
     paths.add_argument(
         "--strict", action="store_true", help="Exit nonzero unless every path passes"
     )
-    for command in (convert, export, stats, distance, matrix, paths):
+    compare = sub.add_parser(
+        "compare",
+        help="Shared content, ordered shared blocks and witnesses for two paths",
+    )
+    compare.add_argument("gfa")
+    compare.add_argument("a")
+    compare.add_argument("b")
+    compare.add_argument(
+        "--orientation", choices=["forward", "both"], default="forward"
+    )
+    compare.add_argument("--circular", action="store_true")
+    compare.add_argument("--copies", choices=COPIES, default="unique")
+    compare.add_argument(
+        "--unknown-overlap", choices=OVERLAP_POLICIES, default="strict"
+    )
+    compare.add_argument("--max-rotations", type=int, default=64)
+    compare.add_argument("-o", "--output", default="-", help="JSON output path")
+
+    content = sub.add_parser(
+        "shared-content", help="Pairwise base-aware shared content between paths"
+    )
+    content.add_argument("gfa")
+    content.add_argument("-o", "--output", required=True)
+    content.add_argument("--measure", choices=MEASURES, default="jaccard")
+    content.add_argument("--copies", choices=COPIES, default="unique")
+    content.add_argument(
+        "--unknown-overlap", choices=OVERLAP_POLICIES, default="strict"
+    )
+    content.add_argument("--path", nargs="+", help="Compare only these paths")
+    for command in (convert, export, stats, distance, matrix, paths, compare, content):
         _shared(command)
     for command in (convert, export, stats, distance, matrix):
         _projection(command)
@@ -484,6 +514,67 @@ def _run(argv):
             if details["method"] == "mean-pairwise"
             else "nodes with a reachable counterpart / all source and target nodes"
         )
+        Path(args.output + ".metadata.json").write_text(
+            json.dumps(metadata, indent=2) + "\n"
+        )
+    elif args.cmd == "compare":
+        collection = load_genome_paths(args.gfa)
+        unknown = [name for name in (args.a, args.b) if name not in collection]
+        if unknown:
+            raise ValueError("unknown path: " + ", ".join(unknown))
+        result = compare_paths(
+            collection,
+            args.a,
+            args.b,
+            copies=args.copies,
+            orientation=args.orientation,
+            circular=args.circular,
+            unknown_overlap=args.unknown_overlap,
+            max_rotations=args.max_rotations,
+        )
+        payload = {
+            "format": "gfa2network-path-comparison/1",
+            "version": __version__,
+            "input": {"path": args.gfa, "sha256": _sha256(args.gfa)},
+        }
+        payload.update(result.to_dict())
+        text = json.dumps(payload, indent=2) + "\n"
+        if args.output == "-":
+            sys.stdout.write(text)
+        else:
+            Path(args.output).write_text(text)
+    elif args.cmd == "shared-content":
+        collection = load_genome_paths(args.gfa)
+        unknown = [name for name in args.path or () if name not in collection]
+        if unknown:
+            raise ValueError("unknown path: " + ", ".join(unknown))
+        result, details = shared_content_matrix(
+            collection,
+            args.path,
+            measure=args.measure,
+            copies=args.copies,
+            unknown_overlap=args.unknown_overlap,
+        )
+        save_matrix(
+            result,
+            Path(args.output),
+            verbose=False,
+            max_dense_gb=args.max_dense_gb,
+        )
+        save_node_map(details["names"], Path(args.output + ".paths.tsv"))
+        metadata = {
+            "format": "gfa2network-shared-content/1",
+            "version": __version__,
+            "input": {"path": args.gfa, "sha256": _sha256(args.gfa)},
+            "measure": details["measure"],
+            "copies": details["copies"],
+            "unknown_overlap": details["unknown_overlap"],
+            "note": details["note"],
+            "missing_values": "NaN where neither path has resolved bases",
+            "paths": [
+                dict(asdict(item), evidence=item.evidence) for item in details["paths"]
+            ],
+        }
         Path(args.output + ".metadata.json").write_text(
             json.dumps(metadata, indent=2) + "\n"
         )

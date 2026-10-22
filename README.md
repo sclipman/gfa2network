@@ -54,6 +54,10 @@ gfa2network convert input.gfa --graph -o traversal.pkl --projection traversal --
 
 # Validate path transitions, spell sequences and audit them against source FASTA
 gfa2network paths input.gfa --reference genomes.fa -o receipt.json --fasta spelled.fa
+
+# Base-aware shared content between paths, and ordered shared blocks for a pair
+gfa2network shared-content input.gfa -o jaccard.csv --measure jaccard
+gfa2network compare input.gfa sample1 sample2 --orientation both -o blocks.json
 ```
 
 Use `gfa2network <subcommand> --help` for options. Shared flags
@@ -93,6 +97,49 @@ Dense CSV/NPY exports check the complete shape times item size before allocating
 `--max-dense-gb` defaults to 5 decimal GB. This bounds the requested dense payload,
 not total process RSS. `--max-tag-mb` warns on estimated stored tag payloads in
 both backends; it is a warning threshold, not a hard memory budget.
+
+## Comparing genome paths
+
+Path comparisons count bases, not vertices, so renaming segments or
+re-segmenting identical sequence leaves them unchanged. They use the rich
+genome paths above.
+
+```python
+from gfa2network import compare_paths, load_genome_paths, shared_content_matrix
+
+paths = load_genome_paths("input.gfa")
+jaccard, details = shared_content_matrix(paths)          # details["shared"], ["union"], ...
+result = compare_paths(paths, "sample1", "sample2", orientation="both")
+result.content.jaccard, result.collinear.bases, result.blocks[0].a  # witness
+```
+
+| Quantity | Definition |
+| --- | --- |
+| Content | Segment bases a path traverses. An exact incoming overlap belongs to the earlier step, so a complete path's content with repeats equals its spelled length. Strand-independent. |
+| `copies="unique"` / `"count"` | Each segment base once per path, or repeated visits counted (shared = smaller copy number). |
+| Shared, union, Jaccard, containment | Shared bases; union = A + B − shared; Jaccard = shared / union; containment = shared / the row path. A zero denominator gives `None` / `NaN`, not 0. |
+| Shared block | Maximal run of consecutive steps with identical segments and orientations in both paths (`forward`), or reversed with opposite orientations (`reverse`). Blocks never cross a jump, a W chunk gap or a transition without supported link evidence. |
+| Collinear chain | Heaviest set of whole blocks in the same order in both paths, weighted by bases. Reordering lowers it; shared content is unchanged. |
+| Witness | For each block and path: step range, start/end coordinates (`source` for W chunks with coordinates, else `path`), `reverse` and `wraps` flags. Unknown coordinates are `None`. |
+
+Steps with an unknown segment length are excluded and listed; steps with an
+unknown incoming overlap count their whole segment and are listed as uncertain;
+either makes a path's evidence `partial`. `orientation="both"` finds a genome
+stored on the opposite strand. `circular=True` declares both genomes circular:
+the chain search tries a rotation at each of the heaviest `max_rotations` blocks
+(`exhaustive` reports whether that covered every candidate), and a block may wrap
+a path's end only across a supported closing link. Shared content means the paths
+traverse the same graph segments; it is not alignment identity (ANI) and implies
+no homology beyond what the graph construction asserted.
+
+Expected behavior on controls (tested): identical paths share everything in one
+block; reordered paths keep Jaccard 1 while the collinear chain drops (and graph
+distances stay 0); repeated visits change only `copies="count"` results;
+reverse-complement traversals match only under `orientation="both"`; a jump splits
+blocks but not content; distinct content shares nothing; paths without resolved
+bases give no ratio. In the bundled DRB1 graph, `gi|345525392:5000-18402` is the
+reverse-strand traversal of `gi|568815529:3998044-4011446` apart from one terminal
+segment: content Jaccard > 0.999, forward collinear 0, reverse collinear 13,401 bp.
 
 ## Relation projections and manifests
 

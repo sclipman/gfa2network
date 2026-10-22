@@ -32,6 +32,15 @@ unchanged. Graphs gain a `projection` manifest attribute.
   distance-matrix metadata embeds it.
 - Add `cost="hops"` / `--cost hops` so shortest-path cost can be separated from
   summed record weight.
+- Add base-aware path comparison: `shared_content_matrix()` (shared bases,
+  union, Jaccard, containment; unique or copy-counted) and `compare_paths()`
+  (maximal forward/reverse shared blocks with step and coordinate witnesses, and
+  a base-weighted collinear chain, optionally circular). Results are invariant
+  to segment renaming and sequence-preserving re-segmentation; missing lengths
+  and unknown overlaps are reported, never read as absence. CLI: `compare`,
+  `shared-content`.
+- `GenomePathSet.layout()` exposes per-step lengths, overlaps, contiguity and
+  start coordinates.
 - Subdivided paths keep parent segments with interval coordinates. Interval links
   now carry an explicit `0M` overlap, and expanded P records keep consistent
   separators and overlaps.
