@@ -260,6 +260,12 @@ def _run(argv):
     )
     paths.add_argument("--case-sensitive", action="store_true")
     paths.add_argument(
+        "--ambiguity",
+        choices=["exact", "as-n"],
+        default="exact",
+        help="Compare IUPAC ambiguity codes exactly, or as N",
+    )
+    paths.add_argument(
         "--unknown-overlap",
         choices=OVERLAP_POLICIES,
         default="strict",
@@ -590,6 +596,7 @@ def _run(argv):
             reverse_complement=args.reverse_complement,
             ignore_case=not args.case_sensitive,
             unknown_overlap=args.unknown_overlap,
+            ambiguity=args.ambiguity,
         )
         payload = {
             "format": "gfa2network-path-fidelity/1",

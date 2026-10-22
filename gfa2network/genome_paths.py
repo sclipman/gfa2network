@@ -50,6 +50,9 @@ MATCHES = frozenset(
 )
 
 _FLIP = {"+": "-", "-": "+"}
+AMBIGUITY = ("exact", "as-n")
+# Every byte other than an unambiguous base becomes N.
+_AS_N = bytes(value if value in b"ACGTacgt" else ord("N") for value in range(256))
 _CIGAR = re.compile(rb"(\d+)([MIDNSHPX=])")
 
 
@@ -916,6 +919,7 @@ class GenomePathSet(Mapping):
         ignore_case=True,
         unknown_overlap="strict",
         reference_names=None,
+        ambiguity="exact",
     ):
         """Compare spelled paths with source sequences and return a receipt.
 
@@ -924,20 +928,29 @@ class GenomePathSet(Mapping):
         equivalences are declared, never inferred: ``reverse_complement=True``
         permits strand reversal, and ``circular`` names paths (or ``True`` for
         all) whose comparison permits rotation. W chunks with coordinates are
-        compared with ``reference[start:end]``. A FASTA match establishes path
-        fidelity to that source, not biological validity of the source.
+        compared with ``reference[start:end]``. ``ambiguity='as-n'`` declares
+        that IUPAC ambiguity codes (any non-ACGT byte) compare equal to ``N``,
+        for graphs built from sequences with normalized ambiguity codes. A
+        FASTA match establishes path fidelity to that source, not biological
+        validity of the source.
         """
+        if ambiguity not in AMBIGUITY:
+            raise ValueError("ambiguity must be exact or as-n")
         if isinstance(references, (str, Path)):
             references = read_fasta(references)
         references = {_text(k): _bytes(v) for k, v in (references or {}).items()}
         reference_names = reference_names or {}
         selected = list(self) if names is None else list(names)
-        declared_circular = (
-            set(map(_text, self)) if circular is True else set(map(_text, circular))
-        )
+        if circular is True:
+            declared_circular = set(map(_text, self))
+        elif not circular:
+            declared_circular = set()
+        else:
+            declared_circular = set(map(_text, circular))
 
         def norm(value):
-            return value.upper() if ignore_case else value
+            value = value.upper() if ignore_case else value
+            return value.translate(_AS_N) if ambiguity == "as-n" else value
 
         results = []
         for name in selected:
@@ -1027,6 +1040,7 @@ class GenomePathSet(Mapping):
             "reverse_complement": reverse_complement,
             "circular": "all" if circular is True else sorted(declared_circular),
             "ignore_case": ignore_case,
+            "ambiguity": ambiguity,
             "subdivided": self.subdivided,
         }
         return FidelityReport(results, policy)

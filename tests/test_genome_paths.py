@@ -289,8 +289,21 @@ def test_audit_compares_with_fasta_under_declared_equivalences(tmp_path):
     assert result["ring"]["comparison"] == "rotation"
     assert result["ring"]["offset"] == 4
     assert declared["policy"]["circular"] == ["ring"]
+    for none in (False, None, ()):
+        assert paths.audit(fasta, circular=none).policy["circular"] == []
     assert declared["summary"]["passed"] == 3 and not declared["ok"]
     json.dumps(declared)
+
+
+def test_ambiguity_normalization_is_declared(tmp_path):
+    gfa = write(tmp_path, "S\ta\tACNT\nP\tp\ta+\t*\n")
+    paths = load_genome_paths(gfa)
+    assert paths.audit({"p": "ACYT"}).paths[0].comparison == "different"
+    report = paths.audit({"p": "acyt"}, ambiguity="as-n")
+    assert report.paths[0].comparison == "identical"
+    assert report.policy["ambiguity"] == "as-n"
+    with pytest.raises(ValueError, match="exact or as-n"):
+        paths.audit({"p": "ACYT"}, ambiguity="iupac")
 
 
 def test_audit_locates_pieces_and_walk_coordinates(tmp_path):
