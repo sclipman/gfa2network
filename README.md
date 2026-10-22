@@ -115,20 +115,23 @@ result.content.jaccard, result.collinear.bases, result.blocks[0].a  # witness
 
 | Quantity | Definition |
 | --- | --- |
-| Content | Segment bases a path traverses. An exact incoming overlap belongs to the earlier step, so a complete path's content with repeats equals its spelled length. Strand-independent. |
+| Content | Segment bases a path traverses. The bases of an exact overlap are removed from one of the two segments, chosen by the link's strand-canonical form, so a reverse-complement traversal (or a rotation of a declared circular path, whose closing link then counts) loses the same bases. A complete path's content with repeats equals its spelled length unless overlaps on both sides of a segment meet. |
 | `copies="unique"` / `"count"` | Each segment base once per path, or repeated visits counted (shared = smaller copy number). |
 | Shared, union, Jaccard, containment | Shared bases; union = A + B − shared; Jaccard = shared / union; containment = shared / the row path. A zero denominator gives `None` / `NaN`, not 0. |
 | Shared block | Maximal run of consecutive steps with identical segments and orientations in both paths (`forward`), or reversed with opposite orientations (`reverse`). Blocks never cross a jump, a W chunk gap or a transition without supported link evidence. |
-| Collinear chain | Heaviest set of whole blocks in the same order in both paths, weighted by bases. Reordering lowers it; shared content is unchanged. |
+| Collinear chain | Heaviest set of whole blocks in the same order in both paths. A block weighs the bases its matched step pairs share, so a chain never exceeds the copy-counted shared content and is symmetric in the two paths. Reordering lowers it; shared content is unchanged. |
 | Witness | For each block and path: step range, start/end coordinates (`source` for W chunks with coordinates, else `path`), `reverse` and `wraps` flags. Unknown coordinates are `None`. |
 
 Steps with an unknown segment length are excluded and listed; steps with an
 unknown incoming overlap count their whole segment and are listed as uncertain;
 either makes a path's evidence `partial`. `orientation="both"` finds a genome
 stored on the opposite strand. `circular=True` declares both genomes circular:
-the chain search tries a rotation at each of the heaviest `max_rotations` blocks
-(`exhaustive` reports whether that covered every candidate), and a block may wrap
-a path's end only across a supported closing link. Shared content means the paths
+the chain search tries a rotation at the start of each of the heaviest
+`max_rotations` maximal blocks (`exhaustive` reports whether every start was
+tried); with repeated segments the best rotation can start inside a block, so the
+circular chain is then a lower bound. A block may wrap a path's end only across a
+supported closing link, and blocks with unknown segment lengths count their known
+bases and are marked incomplete. Shared content means the paths
 traverse the same graph segments; it is not alignment identity (ANI) and implies
 no homology beyond what the graph construction asserted.
 

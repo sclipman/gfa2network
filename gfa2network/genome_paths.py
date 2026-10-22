@@ -710,6 +710,15 @@ class GenomePathSet(Mapping):
             else:
                 transition = path.transitions[step.ordinal - 1]
                 overlap, joined = _incoming(transition, path, step, unknown_overlap)
+                previous = lengths[-1]
+                if (
+                    overlap
+                    and length is not None
+                    and previous is not None
+                    and overlap > min(length, previous)
+                ):
+                    # Spelling reports overlap_exceeds_sequence here.
+                    overlap, joined = None, False
                 if coordinates == "source" and transition.status == "boundary":
                     start = chunk.start
                 elif joined and end is not None:

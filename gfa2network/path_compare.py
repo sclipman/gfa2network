@@ -5,9 +5,13 @@ counted in bases rather than vertices, so a sequence-preserving change of
 segmentation (or renaming) leaves them unchanged.
 
 Content
-    Each step contributes the bases of its segment that it adds beyond its
-    predecessor: an exact incoming overlap is attributed to the earlier step,
-    so a complete path's content totals its spelled length. Content is
+    Each step contributes the bases of its segment that the path does not
+    already spell through a neighbouring step. The bases of an exact overlap
+    are removed from one of the two segments, chosen by the strand-canonical
+    form of the link, so a path and its reverse-complement traversal (or a
+    rotation of a declared circular path, whose closing link then counts too)
+    lose the same forward-strand bases. A complete path's content totals its
+    spelled length unless overlaps on both sides of a segment meet. Content is
     strand-independent. ``copies='unique'`` counts each segment base once per
     path (set semantics); ``copies='count'`` counts repeated visits
     (multiset: shared = sum of the smaller copy number). Steps with an unknown
@@ -25,7 +29,10 @@ Blocks
 
 Collinear chain
     The heaviest set of non-overlapping blocks in the same order in both paths,
-    weighted by bases. It measures conserved order; reordered content lowers it
+    weighted by each block's shared bases: for every pair of matched steps, the
+    overlap of the segment bases each step contributes. A chain therefore never
+    exceeds the copy-counted shared content of the two paths. Blocks with unknown segment lengths
+    weigh their known bases and are marked incomplete. It measures conserved order; reordered content lowers it
     while leaving shared content unchanged. Blocks are chained whole, not
     trimmed. ``circular=True`` additionally lets the chain start anywhere in
     both paths; wrapping across a path's end requires supported closing-link
@@ -112,13 +119,20 @@ class Witness:
 
 @dataclass(frozen=True)
 class SharedBlock:
+    """``bases`` sums, over matched step pairs, the shared contributed bases.
+
+    ``complete`` is false when a segment length in the block is unknown; the
+    known bases are still counted.
+    """
+
     orientation: str  # "forward" or "reverse"
     steps: int
-    bases: Optional[int]
+    bases: int
     first_segment: str
     last_segment: str
     a: Witness
     b: Witness
+    complete: bool = True
 
 
 @dataclass(frozen=True)
@@ -130,6 +144,7 @@ class CollinearChain:
     blocks: Tuple[SharedBlock, ...]
     rotation: Optional[Tuple[int, int]] = None
     exhaustive: bool = True
+    complete: bool = True
 
 
 @dataclass
@@ -152,37 +167,78 @@ class PathComparison:
 # ---------------------------------------------------------------- content
 
 
-def _contributions(paths, name, layout):
-    """Yield ``(segment, start, end)`` forward-strand intervals per step."""
-    path = paths[name]
-    unresolved, uncertain, intervals = [], [], []
-    for step in path.steps:
-        index = step.ordinal
-        length = layout.lengths[index]
-        if length is None:
-            unresolved.append(index)
-            continue
-        overlap = layout.overlaps[index]
-        if overlap is None:
-            uncertain.append(index)
-            overlap = 0
-        overlap = min(overlap, length)
-        if step.orientation == "+":
-            interval = (overlap, length)
+def _link_key(first, second):
+    (a, oa), (b, ob) = first, second
+    return min((a, oa, b, ob), (b, _FLIP[ob], a, _FLIP[oa]))
+
+
+def _attribution(paths, name, layout, closing=None):
+    """Per-step forward-strand intervals after removing overlaps canonically.
+
+    Returns ``(intervals, contributions, unresolved, uncertain)``: one
+    ``(segment, start, end)`` or ``None`` per step, the bases each step
+    contributes (``None`` if its length is unknown), and the steps with an
+    unknown length or an unknown incoming overlap. ``closing`` is
+    ``(contiguous, overlap)`` for the link from the last step back to the
+    first, when the path is declared circular.
+    """
+    steps = paths[name].steps
+    n = len(steps)
+    tokens = [(_raw(step.segment), step.orientation) for step in steps]
+    prefix, suffix = [0] * n, [0] * n
+    uncertain = []
+
+    def remove(before, after, overlap):
+        if (
+            tokens[before][0],
+            tokens[before][1],
+            tokens[after][0],
+            tokens[after][1],
+        ) == _link_key(tokens[before], tokens[after]):
+            prefix[after] += overlap  # the later segment's leading bases
         else:
-            interval = (0, length - overlap)
-        intervals.append((_raw(step.segment), interval[0], interval[1]))
-    return intervals, tuple(unresolved), tuple(uncertain)
+            suffix[before] += overlap  # the earlier segment's trailing bases
+
+    for i in range(1, n):
+        overlap = layout.overlaps[i]
+        if overlap is None:
+            uncertain.append(i)
+        elif overlap and layout.contiguous[i]:
+            remove(i - 1, i, overlap)
+    if closing is not None and closing[0] and closing[1] and n:
+        remove(n - 1, 0, closing[1])
+    intervals, contributions, unresolved = [], [], []
+    for i, (segment, orientation) in enumerate(tokens):
+        length = layout.lengths[i]
+        if length is None:
+            unresolved.append(i)
+            intervals.append(None)
+            contributions.append(None)
+            continue
+        lead, trail = min(prefix[i], length), min(suffix[i], length)
+        if lead + trail >= length:
+            interval = (0, 0)
+        elif orientation == "+":
+            interval = (lead, length - trail)
+        else:
+            interval = (trail, length - lead)
+        intervals.append((segment,) + interval)
+        contributions.append(interval[1] - interval[0])
+    return intervals, contributions, tuple(unresolved), tuple(uncertain)
 
 
 class _Content:
-    def __init__(self, paths, name, layout):
-        intervals, unresolved, uncertain = _contributions(paths, name, layout)
+    def __init__(self, paths, name, layout, closing=None):
+        intervals, contributions, unresolved, uncertain = _attribution(
+            paths, name, layout, closing
+        )
+        self.contributions = contributions
+        self.intervals = [None if item is None else item[1:] for item in intervals]
         self.by_segment = defaultdict(list)
-        for segment, start, end in intervals:
-            if end > start:
-                self.by_segment[segment].append((start, end))
-        copy_bases = sum(end - start for _, start, end in intervals)
+        for item in intervals:
+            if item is not None and item[2] > item[1]:
+                self.by_segment[item[0]].append((item[1], item[2]))
+        copy_bases = sum(c for c in contributions if c is not None)
         unique = sum(_merged_length(parts) for parts in self.by_segment.values())
         self.summary = PathContent(
             _text(paths[name].name),
@@ -275,10 +331,11 @@ def _compare_content(a, b, copies):
 class _Track:
     """A path as tokens with contiguity, optionally rotated or reversed."""
 
-    def __init__(self, paths, name, layout, closing):
+    def __init__(self, paths, name, layout, closing, intervals):
         path = paths[name]
         self.name = _text(path.name)
         self.layout = layout
+        self.intervals = intervals  # contributed (start, end) per original step
         self.tokens = [(_raw(s.segment), s.orientation) for s in path.steps]
         self.labels = [_text(s.segment) for s in path.steps]
         self.contiguous = list(layout.contiguous)
@@ -323,15 +380,8 @@ class _Track:
     def length(self, t):
         return self.layout.lengths[self.origin[t]]
 
-    def bases(self, t0, t1):
-        total = 0
-        for t in range(t0, t1 + 1):
-            length = self.length(t)
-            overlap = self.overlaps[t] if t > t0 else 0
-            if length is None or overlap is None:
-                return None
-            total += length - overlap
-        return total
+    def interval(self, t):
+        return self.intervals[self.origin[t]]
 
     def witness(self, t0, t1):
         first, last = self.origin[t0], self.origin[t1]
@@ -393,9 +443,13 @@ def _maximal_blocks(a, b, max_matches):
 
 def _block(a, b, span, orientation):
     i0, i1, j0, j1 = span
-    bases = a.bases(i0, i1)
-    if bases is None:
-        bases = b.bases(j0, j1)
+    bases, complete = 0, True
+    for offset in range(i1 - i0 + 1):
+        first, second = a.interval(i0 + offset), b.interval(j0 + offset)
+        if first is None or second is None:
+            complete = False
+            continue
+        bases += max(0, min(first[1], second[1]) - max(first[0], second[0]))
     return SharedBlock(
         orientation,
         i1 - i0 + 1,
@@ -404,6 +458,7 @@ def _block(a, b, span, orientation):
         a.labels[i1],
         a.witness(i0, i1),
         b.witness(j0, j1),
+        complete,
     )
 
 
@@ -457,7 +512,7 @@ def _chain(spans, weights):
 def _collinear(a, b, orientation, max_matches):
     spans = _maximal_blocks(a, b, max_matches)
     blocks = [_block(a, b, span, orientation) for span in spans]
-    weights = [block.bases or 0 for block in blocks]
+    weights = [block.bases for block in blocks]
     total, chain = _chain(spans, weights)
     return total, [blocks[k] for k in chain], spans, weights
 
@@ -487,28 +542,37 @@ def compare_paths(
     maximal shared block (with witnesses in both paths), and the collinear
     chain. ``orientation='both'`` also finds reverse blocks and a reverse
     chain, for a genome stored on the opposite strand. ``circular=True``
-    declares both genomes circular; the chain search tries a rotation at each
-    of the ``max_rotations`` heaviest blocks and reports whether that was
-    exhaustive.
+    declares both genomes circular; the chain search tries a rotation at the
+    start of each of the ``max_rotations`` heaviest maximal blocks, and
+    ``exhaustive`` reports whether every such start was tried. Each rotation's
+    best chain is exact; with repeated segments a better rotation can start
+    inside a block, so the circular optimum is then a lower bound.
     """
     if copies not in COPIES:
         raise ValueError("copies must be unique or count")
     if orientation not in ORIENTATIONS:
         raise ValueError("orientation must be forward or both")
+    if not isinstance(max_rotations, int) or max_rotations < 0:
+        raise ValueError("max_rotations must be a nonnegative integer")
     layouts = {
         name: paths.layout(name, unknown_overlap=unknown_overlap) for name in (a, b)
     }
-    content = _compare_content(
-        _Content(paths, a, layouts[a]),
-        _Content(paths, b, layouts[b]),
-        copies,
-    )
+    closings = {
+        name: _closing(paths, name, unknown_overlap) if circular else (False, 0)
+        for name in (a, b)
+    }
+    contents = {
+        name: _Content(paths, name, layouts[name], closings[name] if circular else None)
+        for name in (a, b)
+    }
+    content = _compare_content(contents[a], contents[b], copies)
     tracks = {
         name: _Track(
             paths,
             name,
             layouts[name],
-            _closing(paths, name, unknown_overlap) if circular else (False, 0),
+            closings[name],
+            contents[name].intervals,
         )
         for name in (a, b)
     }
@@ -520,11 +584,14 @@ def compare_paths(
         rotation, exhaustive = None, True
         if circular and spans:
             order = sorted(range(len(spans)), key=lambda k: (-weights[k], k))
-            candidates = []
+            candidates, seen = [], set()
             for k in order:
                 pair = (spans[k][0], spans[k][2])
-                if pair not in candidates:
+                if pair not in seen:
+                    seen.add(pair)
                     candidates.append(pair)
+                    if len(candidates) > max_rotations:
+                        break
             exhaustive = len(candidates) <= max_rotations
             for i0, j0 in candidates[:max_rotations]:
                 rotated = _collinear(
@@ -544,6 +611,7 @@ def compare_paths(
             tuple(chain),
             rotation,
             exhaustive,
+            all(block.complete for block in chain),
         )
 
     forward_blocks = [
@@ -564,7 +632,7 @@ def compare_paths(
         "orientation": orientation,
         "circular": circular,
         "unknown_overlap": unknown_overlap,
-        "content": "segment bases traversed; incoming exact overlaps belong to the earlier step",
+        "content": "segment bases traversed; overlap bases removed from the strand-canonical side",
         "blocks": "maximal runs of identical oriented steps across supported links",
     }
     return PathComparison(
@@ -585,6 +653,7 @@ def shared_content_matrix(
     measure="jaccard",
     copies="unique",
     unknown_overlap="strict",
+    circular=(),
 ):
     """Pairwise base-aware shared content for many paths.
 
@@ -594,15 +663,26 @@ def shared_content_matrix(
     per-path :class:`PathContent` and the policy. Pairs with no resolved bases
     are ``NaN`` rather than 0, so missing evidence is not reported as absence.
     Segments every path traverses whole are summed with sparse products;
-    partially covered segments use an interval sweep.
+    partially covered segments use an interval sweep. ``circular`` names
+    paths (or ``True`` for all) whose closing-link overlap is attributed, as in
+    :func:`compare_paths`.
     """
     if measure not in MEASURES:
         raise ValueError("measure must be jaccard, shared or containment")
     if copies not in COPIES:
         raise ValueError("copies must be unique or count")
     names = list(paths) if names is None else list(names)
+    if circular is True:
+        ring = set(map(_text, names))
+    else:
+        ring = set(map(_text, circular or ()))
     contents = [
-        _Content(paths, name, paths.layout(name, unknown_overlap=unknown_overlap))
+        _Content(
+            paths,
+            name,
+            paths.layout(name, unknown_overlap=unknown_overlap),
+            _closing(paths, name, unknown_overlap) if _text(name) in ring else None,
+        )
         for name in names
     ]
     n = len(names)

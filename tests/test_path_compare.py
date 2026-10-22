@@ -132,19 +132,88 @@ def test_unknown_overlaps_are_uncertain_unless_declared(tmp_path):
     assert [b.steps for b in blunt.blocks] == [2]
 
 
-def test_overlap_bases_belong_to_the_earlier_step(tmp_path):
+def test_overlap_bases_are_removed_once_from_a_canonical_side(tmp_path):
     gfa = tmp_path / "overlap.gfa"
     gfa.write_text(
         "S\ta\tACGTA\nS\tb\tTACCC\nL\ta\t+\tb\t+\t2M\nP\tx\ta+,b+\t*\nP\ty\tb+\t*\n"
+        "P\tz\tb-,a-\t*\n"
     )
     paths = load_genome_paths(gfa)
     result = compare_paths(paths, "x", "y")
     assert result.content.a.copy_bases == len(paths.spell("x").sequence) == 8
     assert (result.content.shared_bases, result.content.union_bases) == (3, 10)
-    assert result.blocks[0].bases == 5  # the block itself is all of b
+    # A block weighs the smaller of its two sides, so chains never exceed content.
+    assert result.blocks[0].bases == 3
+    assert result.collinear.bases <= result.content.shared_bases
+    # The reverse-complement traversal loses the same forward-strand bases.
+    strand = compare_paths(paths, "x", "z", orientation="both")
+    assert strand.content.jaccard == 1
+    assert strand.reverse_collinear.bases == 8
+    assert strand.reverse_collinear.fraction_a == 1
     # The matrix sweep for partial coverage agrees with the pairwise result.
     _, details = shared_content_matrix(paths)
-    assert details["shared"].tolist() == [[8, 3], [3, 5]]
+    assert details["shared"].tolist() == [[8, 3, 8], [3, 5, 3], [8, 3, 8]]
+
+
+def test_rotated_circular_overlap_graph_matches_itself(tmp_path):
+    gfa = tmp_path / "ring.gfa"
+    gfa.write_text(
+        "S\ta\tACGTA\nS\tb\tTACCG\nS\tc\tCGGAC\n"
+        "L\ta\t+\tb\t+\t2M\nL\tb\t+\tc\t+\t2M\nL\tc\t+\ta\t+\t2M\n"
+        "P\tx\ta+,b+,c+\t*\nP\ty\tb+,c+,a+\t*\n"
+    )
+    paths = load_genome_paths(gfa)
+    ring = compare_paths(paths, "x", "y", circular=True)
+    assert ring.content.jaccard == 1 and ring.content.a_bases == 9
+    assert ring.collinear.bases == 9 and ring.collinear.fraction_a == 1
+    linear = compare_paths(paths, "x", "y")
+    assert linear.collinear.bases <= linear.content.shared_bases
+    _, details = shared_content_matrix(paths, circular=True)
+    assert details["jaccard"][0, 1] == 1
+
+
+def test_chains_never_exceed_shared_content(tmp_path):
+    gfa = tmp_path / "bubble.gfa"
+    gfa.write_text(
+        "S\ta\tACGTA\nS\tb1\tTACCG\nS\tb2\tTAGCG\nS\tc\tCGGAC\n"
+        "L\ta\t+\tb1\t+\t2M\nL\ta\t+\tb2\t+\t2M\nL\tb1\t+\tc\t+\t2M\n"
+        "L\tb2\t+\tc\t+\t2M\nJ\ta\t+\tc\t+\t5\n"
+        "P\tx\ta+,b1+,c+\t*\nP\ty\ta+,b2+,c+\t*\nP\tz\ta+;c+\t*\n"
+    )
+    paths = load_genome_paths(gfa)
+    for other in ("y", "z"):
+        result = compare_paths(paths, "x", other)
+        assert result.collinear.bases <= result.content.shared_bases
+        assert result.collinear.fraction_a <= 1
+        swapped = compare_paths(paths, other, "x")
+        assert swapped.collinear.bases == result.collinear.bases
+
+
+def test_unknown_lengths_are_counted_as_known_bases_not_absence(tmp_path):
+    gfa = tmp_path / "unknown.gfa"
+    gfa.write_text(
+        "S\ta\tAAAA\nS\tu\t*\nS\tc\tCCCC\nS\tg\tGGGG\n"
+        "L\ta\t+\tu\t+\t0M\nL\tu\t+\tc\t+\t0M\nL\tc\t+\tg\t+\t0M\n"
+        "P\tx\ta+,u+,c+,g+\t*\nP\ty\ta+,u+,c+,g+\t*\n"
+    )
+    result = compare_paths(load_genome_paths(gfa), "x", "y")
+    (block,) = result.blocks
+    assert (block.bases, block.complete) == (12, False)
+    assert result.collinear.bases == 12 and result.collinear.fraction_a == 1
+    assert result.collinear.complete is False
+
+
+def test_overlaps_longer_than_segments_break_contiguity(tmp_path):
+    gfa = tmp_path / "long.gfa"
+    gfa.write_text("S\ta\tACGT\nS\tb\tACGT\nL\ta\t+\tb\t+\t10M\nP\tx\ta+,b+\t*\n")
+    paths = load_genome_paths(gfa)
+    layout = paths.layout("x")
+    assert layout.contiguous == (False, False) and layout.starts == (0, None)
+    result = compare_paths(paths, "x", "x")
+    assert all(block.bases >= 0 for block in result.blocks)
+    assert result.content.a.uncertain_overlap_steps == (1,)
+    with pytest.raises(ValueError, match="max_rotations"):
+        compare_paths(paths, "x", "x", circular=True, max_rotations=-1)
 
 
 def chopped(sequence, prefix):
