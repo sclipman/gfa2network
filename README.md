@@ -49,6 +49,9 @@ gfa2network export input.gfa --format graphml > graph.graphml
 # Pairwise path connectivity, with labels and reachable-coverage sidecars
 gfa2network distance-matrix input.gfa -o distances.csv --method mean-pairwise
 
+# Only sequence adjacency (no containments, alignments or gap estimates)
+gfa2network convert input.gfa --graph -o traversal.pkl --projection traversal --manifest traversal.json
+
 # Validate path transitions, spell sequences and audit them against source FASTA
 gfa2network paths input.gfa --reference genomes.fa -o receipt.json --fasta spelled.fa
 ```
@@ -90,6 +93,49 @@ Dense CSV/NPY exports check the complete shape times item size before allocating
 `--max-dense-gb` defaults to 5 decimal GB. This bounds the requested dense payload,
 not total process RSS. `--max-tag-mb` warns on estimated stored tag payloads in
 both backends; it is a warning threshold, not a hard memory budget.
+
+## Relation projections and manifests
+
+GFA records declare different relationships. Every relation record is assigned
+one class, and `projection=` / `--projection` selects the classes that become
+edges:
+
+| Class | Records |
+| --- | --- |
+| `adjacency` | `L` links, GFA2 dovetail `E` edges, coordinate-free (historical) `E` edges |
+| `containment` | `C` records; GFA2 `E` edges whose interval spans a whole segment |
+| `alignment` | Other GFA2 `E` alignments between segment interiors |
+| `gap` | `J` jumps and GFA2 `G` gaps: estimated distances, not observed sequence |
+| `unclassified` | GFA2 `E` edges with an unknown segment length or out-of-range coordinates |
+
+| Projection | Classes |
+| --- | --- |
+| `all` (default) | every class; identical to 2.0 behavior |
+| `traversal` | `adjacency` |
+| `gap-inclusive` | `adjacency`, `gap` |
+| `alignment` | `containment`, `alignment` |
+| custom | any set, e.g. `projection={"gap"}` or `--projection adjacency,gap` |
+
+Scientific analyses should choose a projection explicitly: under `all`, a
+containment or an estimated gap is an edge like any other, so connectivity can
+pass through sequence that was never observed as adjacent. GFA2 `E` records are
+classified from forward-strand coordinates and segment lengths; records that
+arrive before their segments are classified when the input ends. Subdivided
+graphs keep each record's original class. Vertices come from `S` records and
+included relations.
+
+Each graph carries a manifest in its `projection` attribute (NetworkX
+`G.graph["projection"]`, igraph `g["projection"]`); `return_manifest=True`
+returns `(result, manifest)` for any result shape, including matrix-only
+conversion. The manifest names the projection and included classes, counts
+included and excluded records by class and record type, and states direction,
+orientation handling, aggregation, weight meaning, edge-cost use, self-loop
+counting, subdivision and vertex/edge/nonzero totals. Record counts include
+duplicate and reciprocal records; the graph aggregates them as described in the
+contract above. `convert --manifest` and `export --manifest` write it with an
+`exports` section stating what each written format retains and drops (for
+example, matrices and edge lists drop multiplicity, record provenance and gap
+estimates). `distance-matrix` metadata embeds it with the cost policy.
 
 ## Supported records
 
@@ -191,6 +237,11 @@ source, not biological validity of the source.
 These functions summarize graph connectivity, using edge costs. They do not
 estimate nucleotide divergence, preserve genome path order, or establish sequence
 identity. `min` is zero whenever two node sets share any node.
+
+Edge cost is explicit. `cost="weight"` (default, `--cost weight`) uses edge
+weights; in the default summing edge mode, duplicate records add to that weight,
+so record support raises cost. `cost="hops"` charges 1 per edge regardless of
+multiplicity, support or weight tags. Choose the relations with `projection`.
 
 | Method | Definition, shared by scalar and matrix APIs |
 | --- | --- |

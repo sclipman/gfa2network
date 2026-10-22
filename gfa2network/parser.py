@@ -53,7 +53,11 @@ class PathRecord:
 
 @dataclass
 class EdgeRecord:
-    """GFA2 edge/alignment record."""
+    """GFA2 edge/alignment record.
+
+    ``relation_class`` is set when the class was decided before the record's
+    coordinates stopped describing its endpoints (alignment subdivision).
+    """
 
     from_segment: bytes
     to_segment: bytes
@@ -65,6 +69,7 @@ class EdgeRecord:
     to_end: int | None = None
     cigar: bytes | None = None
     tags: dict[str, Any] | None = None
+    relation_class: str | None = None
 
 
 @dataclass

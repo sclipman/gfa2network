@@ -26,6 +26,7 @@ from .paths import PathCollector
 
 METHODS = ("min", "mean", "mean-pairwise", "mean-nearest")
 POLICIES = ("infinite", "ignore", "raise")
+COSTS = ("weight", "hops")
 
 
 @dataclass(frozen=True)
@@ -51,14 +52,24 @@ def _policy(policy):
         raise ValueError("unreachable must be infinite, ignore, or raise")
 
 
+def _cost(cost):
+    if cost not in COSTS:
+        raise ValueError("cost must be weight or hops")
+
+
 class DistanceEngine:
     """One CSR index per graph; searches retain one O(V) distance vector.
 
     Parallel edges use the cheapest cost for shortest paths, matching standard
     multigraph shortest-path semantics. Adjacency export separately sums weights.
+    ``cost='weight'`` uses edge weights (summed record weights in the default
+    edge mode); ``cost='hops'`` charges 1 per edge, independent of record
+    multiplicity, support or weight tags.
     """
 
-    def __init__(self, graph, *, warn=True):
+    def __init__(self, graph, *, warn=True, cost="weight"):
+        _cost(cost)
+        self.cost = cost
         if isinstance(graph, nx.Graph):
             self.nodes = list(graph.nodes)
             self.directed = graph.is_directed()
@@ -97,7 +108,7 @@ class DistanceEngine:
             )
         weights = {}
         for u, v, weight in edges:
-            weight = 1.0 if weight is None else weight
+            weight = 1.0 if weight is None or cost == "hops" else weight
             if (
                 not isinstance(weight, (int, float, np.number))
                 or not math.isfinite(weight)
@@ -185,6 +196,7 @@ def genome_distance(
     method="min",
     unreachable="infinite",
     return_details=False,
+    cost="weight",
 ):
     """Distance between unique node sets, respecting the supplied direction.
 
@@ -196,17 +208,18 @@ def genome_distance(
     divergence. With ``return_details=True`` return a DistanceResult including
     contribution coverage. Pairwise coverage counts pairs; min/nearest coverage
     counts source/target nodes that have at least one reachable counterpart.
+    ``cost='hops'`` charges 1 per edge instead of the (summed) edge weight.
     """
     method = _method(method)
     _policy(unreachable)
-    engine = DistanceEngine(graph)
+    engine = DistanceEngine(graph, cost=cost)
     result = _distance(
         engine, engine.indices(nodes_a), engine.indices(nodes_b), method, unreachable
     )
     return result if return_details else result.distance
 
 
-def sequence_distance(graph, seq_a, seq_b, *, return_details=False):
+def sequence_distance(graph, seq_a, seq_b, *, return_details=False, cost="weight"):
     """Minimum graph distance between nodes with exact stored sequence strings."""
     first = seq_a.encode() if isinstance(seq_a, str) else bytes(seq_a)
     second = seq_b.encode() if isinstance(seq_b, str) else bytes(seq_b)
@@ -231,7 +244,7 @@ def sequence_distance(graph, seq_a, seq_b, *, return_details=False):
             "one or both sequences were not found; build the graph with store_seq=True"
         )
     return genome_distance(
-        graph, a, b, unreachable="raise", return_details=return_details
+        graph, a, b, unreachable="raise", return_details=return_details, cost=cost
     )
 
 
@@ -266,6 +279,7 @@ def compute_stats(
     strip_orientation=False,
     raw_bytes_id=False,
     backend="networkx",
+    projection="all",
 ):
     """Compute graph and logical path counts in one input pass, including stdin."""
     graph, paths = parse_gfa(
@@ -277,6 +291,7 @@ def compute_stats(
         raw_bytes_id=raw_bytes_id,
         backend=backend,
         return_paths=True,
+        projection=projection,
     )
     if isinstance(graph, nx.Graph):
         nodes, edges = graph.number_of_nodes(), graph.number_of_edges()
@@ -310,6 +325,8 @@ def genome_distance_matrix(
     weight_tag=None,
     return_details=False,
     max_dense_gb=5.0,
+    projection="all",
+    cost="weight",
 ):
     """Pairwise path-set distances using the same definitions as genome_distance.
 
@@ -318,10 +335,12 @@ def genome_distance_matrix(
     while minimum/nearest methods search once per path (twice if directed).
     Mean pairwise self-distances are computed, not artificially set to zero.
     ``return_details=True`` additionally returns names, coverage, reachable and
-    total contribution matrices. Output allocation is guarded before creation.
+    total contribution matrices, plus the graph projection manifest and cost.
+    Output allocation is guarded before creation.
     """
     method = _method(method)
     _policy(unreachable)
+    _cost(cost)
     if not math.isfinite(max_dense_gb) or max_dense_gb < 0:
         raise ValueError("max_dense_gb must be finite and nonnegative")
     graph, paths = parse_gfa(
@@ -334,6 +353,7 @@ def genome_distance_matrix(
         raw_bytes_id=raw_bytes_id,
         verbose=verbose,
         return_paths=True,
+        projection=projection,
     )
     names = list(paths)
     if not names:
@@ -344,7 +364,7 @@ def genome_distance_matrix(
         raise MemoryError(
             f"distance matrix workspace would allocate about {allocation / 1e9:.3g} GB; increase max_dense_gb or select fewer paths"
         )
-    engine = DistanceEngine(graph, warn=False)
+    engine = DistanceEngine(graph, warn=False, cost=cost)
     sets = [engine.indices(paths[name]) for name in names]
     lengths = np.asarray([len(nodes) for nodes in sets], dtype=np.int64)
     sums = np.zeros((n, n), dtype=float)
@@ -410,5 +430,11 @@ def genome_distance_matrix(
             "method": method,
             "unreachable": unreachable,
             "directed": directed,
+            "cost": cost,
+            "projection": (
+                graph.graph["projection"]
+                if isinstance(graph, nx.Graph)
+                else graph["projection"]
+            ),
         }
     return output

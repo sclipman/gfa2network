@@ -14,6 +14,7 @@ import networkx as nx
 import numpy as np
 
 from .analysis import (
+    COSTS,
     METHODS,
     POLICIES,
     compute_stats,
@@ -23,6 +24,7 @@ from .analysis import (
 )
 from .builders import parse_gfa
 from .genome_paths import OVERLAP_POLICIES, load_genome_paths
+from .projection import CLASSES, PROJECTIONS, export_manifest, resolve_projection
 from .utils import convert_format, save_matrix, save_node_map
 from .version import __version__
 
@@ -55,6 +57,39 @@ def _distance_options(parser):
     parser.add_argument("--method", choices=METHODS, default="min")
     parser.add_argument("--unreachable", choices=POLICIES, default="infinite")
     parser.add_argument("--weight-tag")
+    parser.add_argument(
+        "--cost",
+        choices=COSTS,
+        default="weight",
+        help="Edge cost: summed weight (default) or 1 per edge (hops)",
+    )
+
+
+def _checked_projection(value):
+    try:
+        resolve_projection(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return value
+
+
+def _projection(parser):
+    parser.add_argument(
+        "--projection",
+        type=_checked_projection,
+        default="all",
+        help=(
+            "Relations that become edges: "
+            + ", ".join(PROJECTIONS)
+            + ", or comma-separated classes from "
+            + ", ".join(CLASSES)
+        ),
+    )
+
+
+def _write_manifest(path, manifest, formats, *, with_weights=False):
+    payload = export_manifest(manifest, formats, with_weights=with_weights)
+    Path(path).write_text(json.dumps(payload, indent=2) + "\n")
 
 
 def _portable(graph):
@@ -143,6 +178,9 @@ def _run(argv):
     convert.add_argument("--bidirected", action="store_true")
     convert.add_argument("--keep-directed-bidir", action="store_true")
     convert.add_argument("--edge-mode", choices=["sum", "parallel"], default="sum")
+    convert.add_argument(
+        "--manifest", metavar="PATH", help="Write the projection manifest"
+    )
 
     export = sub.add_parser("export", help="Export normalized graph connectivity")
     export.add_argument("gfa")
@@ -160,6 +198,9 @@ def _run(argv):
         "--with-weights",
         action="store_true",
         help="Add summed edge weights as a third edge-list column",
+    )
+    export.add_argument(
+        "--manifest", metavar="PATH", help="Write the projection manifest"
     )
     _direction(export)
 
@@ -230,6 +271,8 @@ def _run(argv):
     )
     for command in (convert, export, stats, distance, matrix, paths):
         _shared(command)
+    for command in (convert, export, stats, distance, matrix):
+        _projection(command)
     args = parser.parse_args(argv)
 
     if args.cmd == "convert":
@@ -256,7 +299,10 @@ def _run(argv):
             split_on_alignment=args.split_on_alignment,
             max_split_nodes=args.max_split_nodes,
             edge_mode=args.edge_mode,
+            projection=args.projection,
+            return_manifest=True,
         )
+        result, manifest = result
         graph = adjacency = nodes = None
         if args.graph and args.matrix:
             if args.no_node_map:
@@ -286,6 +332,11 @@ def _run(argv):
                 else:
                     with open(args.output, "wb") as file:
                         pickle.dump(graph, file)
+        if args.manifest:
+            formats = (["pickle"] if args.graph and args.output else []) + (
+                ["matrix"] if args.matrix else []
+            )
+            _write_manifest(args.manifest, manifest, formats)
     elif args.cmd == "export":
         graph = parse_gfa(
             args.gfa,
@@ -298,7 +349,15 @@ def _run(argv):
             max_tag_mb=args.max_tag_mb,
             weight_tag=args.weight_tag,
             edge_mode=args.edge_mode,
+            projection=args.projection,
         )
+        if args.manifest:
+            _write_manifest(
+                args.manifest,
+                graph.graph["projection"],
+                [args.format],
+                with_weights=args.with_weights,
+            )
         if args.format == "edge-list":
             stream = (
                 sys.stdout
@@ -358,9 +417,12 @@ def _run(argv):
             verbose=args.verbose,
             weight_tag=args.weight_tag,
             return_paths=True,
+            projection=args.projection,
         )
         if args.seq:
-            result = sequence_distance(graph, *args.seq, return_details=args.details)
+            result = sequence_distance(
+                graph, *args.seq, return_details=args.details, cost=args.cost
+            )
         else:
             keys = [name.encode() if args.raw_bytes_id else name for name in args.path]
             if any(key not in paths for key in keys):
@@ -377,9 +439,12 @@ def _run(argv):
                 method=args.method,
                 unreachable=args.unreachable,
                 return_details=args.details,
+                cost=args.cost,
             )
         if args.details:
             payload = asdict(result)
+            payload["cost"] = args.cost
+            payload["projection"] = resolve_projection(args.projection)[0]
             payload["coverage"] = result.coverage
             payload["distance"] = (
                 result.distance if np.isfinite(result.distance) else "inf"
@@ -399,6 +464,8 @@ def _run(argv):
             weight_tag=args.weight_tag,
             return_details=True,
             max_dense_gb=args.max_dense_gb,
+            projection=args.projection,
+            cost=args.cost,
         )
         save_matrix(
             result,
@@ -408,7 +475,10 @@ def _run(argv):
         )
         save_node_map(details["names"], Path(args.output + ".paths.tsv"))
         np.save(args.output + ".coverage.npy", details["coverage"])
-        metadata = {key: details[key] for key in ("method", "unreachable", "directed")}
+        metadata = {
+            key: details[key]
+            for key in ("method", "unreachable", "directed", "cost", "projection")
+        }
         metadata["coverage_definition"] = (
             "reachable node pairs / all node pairs"
             if details["method"] == "mean-pairwise"
@@ -469,7 +539,11 @@ def _run(argv):
             strip_orientation=args.strip_orientation,
             raw_bytes_id=args.raw_bytes_id,
             backend=args.backend,
+            projection=args.projection,
         )
+        name = resolve_projection(args.projection)[0]
+        if name != "all":
+            print(f"projection\t {name}")
         for key, value in result.items():
             print(
                 f"{key}\t {value:.6g}"

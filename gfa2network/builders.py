@@ -46,6 +46,8 @@ def parse_gfa(
     return_paths: bool = False,
     rich_paths: bool = False,
     edge_mode: str = "sum",
+    projection="all",
+    return_manifest: bool = False,
     progress_step: int = 500_000,
     max_split_nodes: int = 1_000_000,
 ):
@@ -64,6 +66,13 @@ def parse_gfa(
     ``return_paths=True`` returns ``(ordinary_result, paths)``. This collects P/O/W
     paths in the same input pass, works on stdin, and validates path references.
     Split paths refer to the generated intervals in traversal order.
+
+    ``projection`` selects which relation classes become edges: ``all`` (the
+    default and the 1.x/2.0 behavior), ``traversal``, ``gap-inclusive``,
+    ``alignment``, or an iterable of classes; see :mod:`gfa2network.projection`.
+    A manifest describing the projection and policies is stored as the graph
+    attribute ``projection``. ``return_manifest=True`` additionally returns it:
+    ``(result, manifest)``, where ``result`` is whatever would otherwise return.
 
     ``rich_paths=True`` (with ``return_paths=True``) returns a
     :class:`~gfa2network.genome_paths.GenomePathSet` instead of the list mapping.
@@ -102,6 +111,7 @@ def parse_gfa(
         raw_bytes_id=raw_bytes_id,
         edge_mode=edge_mode,
         max_tag_mb=max_tag_mb,
+        projection=projection,
     )
     parser = GFAParser(path)
     rich = (
@@ -147,11 +157,19 @@ def parse_gfa(
             )
     graph = builder.finish_graph()
     matrix = builder.finish_matrix(dtype, asymmetric)
+    manifest = builder.manifest(subdivided=split_on_alignment)
     if graph is not None:
         if backend == "networkx":
+            manifest["graph_edges"] = graph.number_of_edges()
             graph.graph["edge_mode"] = edge_mode
+            graph.graph["projection"] = manifest
         else:
+            manifest["graph_edges"] = graph.ecount()
             graph["edge_mode"] = edge_mode
+            graph["projection"] = manifest
+    if matrix is not None:
+        manifest["matrix_nonzeros"] = int(matrix.nnz)
+        manifest["matrix_symmetric_projection"] = asymmetric is False
     node_list = (
         [builder.name(node) for node in builder.node_index]
         if return_node_list
@@ -166,17 +184,20 @@ def parse_gfa(
     else:
         result = None
     if rich is not None:
-        return result, rich.finish()
-    if return_paths:
-        return result, paths.finish(
-            raw_bytes=raw_bytes_id,
-            oriented=bidirected,
-            nodes={
-                node + b":" + orientation
-                for node in builder.defined_segments
-                for orientation in (b"+", b"-")
-            }
-            if bidirected
-            else builder.defined_segments,
+        result = (result, rich.finish())
+    elif paths is not None:
+        result = (
+            result,
+            paths.finish(
+                raw_bytes=raw_bytes_id,
+                oriented=bidirected,
+                nodes={
+                    node + b":" + orientation
+                    for node in builder.defined_segments
+                    for orientation in (b"+", b"-")
+                }
+                if bidirected
+                else builder.defined_segments,
+            ),
         )
-    return result
+    return (result, manifest) if return_manifest else result

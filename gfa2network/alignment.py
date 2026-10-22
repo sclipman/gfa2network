@@ -7,6 +7,7 @@ from dataclasses import replace
 import re
 import warnings
 
+from .projection import classify_edge
 from .parser import (
     Segment,
     Link,
@@ -212,9 +213,13 @@ def split_records(records, *, max_nodes=1_000_000):
             return pieces[node][-1][2]
         return pieces[node][0][2]
 
+    lengths = {node: seg.length for node, seg in segments.items()}
     for index, rec in enumerate(records):
         if isinstance(rec, Segment):
             continue
+        if isinstance(rec, EdgeRecord) and rec.relation_class is None:
+            # Generated intervals no longer match the original coordinates.
+            rec = replace(rec, relation_class=classify_edge(rec, lengths)[0])
         if isinstance(rec, (PathRecord, WalkRecord)):
             expanded = []
             separators, overlaps = [], []

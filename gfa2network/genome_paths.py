@@ -20,6 +20,7 @@ import re
 from typing import Dict, List, NamedTuple, Optional, Tuple, Union
 
 from .model import reverse_complement
+from .projection import classify_edge
 from .parser import (
     GFAParser,
     Segment,
@@ -79,14 +80,6 @@ def overlap_length(cigar):
 def _canonical(a, oa, b, ob):
     """A transition and its reverse-complement traversal share one key."""
     return min((a, oa, b, ob), (b, _FLIP[ob], a, _FLIP[oa]))
-
-
-def _suffix(length, orientation, n):
-    return (length - n, length) if orientation == "+" else (0, n)
-
-
-def _prefix(length, orientation, n):
-    return (0, n) if orientation == "+" else (length - n, length)
 
 
 def _raw(value):
@@ -417,22 +410,17 @@ class GenomePathBuilder:
 
     def _add_edge(self, edge):
         line = getattr(edge, "line_number", None)
+        relation, swapped = classify_edge(edge, self.lengths)
+        if relation != "adjacency":
+            # Containments, internal alignments and unclassifiable edges are
+            # not traversals.
+            return
         coords = (edge.from_start, edge.from_end, edge.to_start, edge.to_end)
         if any(value is None for value in coords):
             # Historical orientation-only E records are links without overlap.
             self._relate(edge, Relation("link", "E", line, "unspecified"))
             return
-        lu = self.lengths.get(edge.from_segment)
-        lv = self.lengths.get(edge.to_segment)
-        if lu is None or lv is None:
-            return
-        fs, fe, ts, te = coords
-        nu, nv = fe - fs, te - ts
-        if not (0 <= fs <= fe <= lu and 0 <= ts <= te <= lv):
-            return
-        if (nu and nu == lu) or (nv and nv == lv):
-            # An interval spanning a whole segment is a containment (GFA2).
-            return
+        nu, nv = edge.from_end - edge.from_start, edge.to_end - edge.to_start
         if edge.cigar is None or edge.cigar == b"*" or not _is_cigar(edge.cigar):
             # Coordinates define the overlap; spelling verifies its bases.
             state, length = ("exact", nu) if nu == nv else ("unsupported", None)
@@ -440,13 +428,7 @@ class GenomePathBuilder:
             state, length = overlap_length(edge.cigar)
             if state == "exact" and not length == nu == nv:
                 state, length = "unsupported", None
-        relation = Relation("link", "E", line, state, length)
-        ou, ov = edge.orientation_from, edge.orientation_to
-        if (fs, fe) == _suffix(lu, ou, nu) and (ts, te) == _prefix(lv, ov, nv):
-            self._relate(edge, relation)
-        elif (ts, te) == _suffix(lv, ov, nv) and (fs, fe) == _prefix(lu, ou, nu):
-            self._relate(edge, relation, swap=True)
-        # Otherwise an internal alignment or containment: not a traversal.
+        self._relate(edge, Relation("link", "E", line, state, length), swap=swapped)
 
     def _name(self, value):
         return value if self.raw_bytes else value.decode("ascii")

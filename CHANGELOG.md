@@ -2,7 +2,8 @@
 
 ## Unreleased (2.1.0.dev0)
 
-Additive; graph, matrix, list-path and distance outputs are unchanged.
+Additive; default graph topology, matrix, list-path and distance outputs are
+unchanged. Graphs gain a `projection` manifest attribute.
 
 - Add optional rich genome paths: `load_genome_paths()` and
   `parse_gfa(..., return_paths=True, rich_paths=True)` return a `GenomePathSet`
@@ -19,6 +20,18 @@ Additive; graph, matrix, list-path and distance outputs are unchanged.
 - Add a path-fidelity audit against source FASTA, with declared reverse-complement
   and circular-rotation equivalences, W coordinate checks and a JSON receipt;
   exposed as `gfa2network paths`.
+- Add explicit relation projections (`all` default, `traversal`,
+  `gap-inclusive`, `alignment`, or custom class sets) for graphs, matrices,
+  statistics and distances. GFA2 `E` records are classified as dovetail
+  adjacency, containment, internal alignment or unclassified, including records
+  that precede their segments; subdivision keeps each record's class.
+- Attach a projection manifest to every graph (`projection` attribute;
+  `return_manifest=True`), with per-class included/excluded record counts and
+  direction, orientation, aggregation, weight and cost policies. `convert` and
+  `export` write it with `--manifest`, declaring what each format drops;
+  distance-matrix metadata embeds it.
+- Add `cost="hops"` / `--cost hops` so shortest-path cost can be separated from
+  summed record weight.
 - Subdivided paths keep parent segments with interval coordinates. Interval links
   now carry an explicit `0M` overlap, and expanded P records keep consistent
   separators and overlaps.

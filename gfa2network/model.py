@@ -12,6 +12,12 @@ import numpy as np
 import scipy.sparse as sp
 
 from .parser import GapRecord
+from .projection import (
+    RelationCounts,
+    record_letter,
+    relation_class,
+    resolve_projection,
+)
 
 _COMPLEMENT = bytes.maketrans(
     b"ACGTRYMKBDHVNacgtrymkbdhvn", b"TGCAYRKMVHDBNtgcayrkmvhdbn"
@@ -27,6 +33,10 @@ class GraphAccumulator:
 
     Undirected self-loops and self-reverse bidirected links count once per record.
     Sparse buffers use typed arrays, and igraph vertices/edges are created in bulk.
+
+    ``projection`` selects the relation classes that become edges (see
+    :mod:`gfa2network.projection`). GFA2 E records whose class needs segment
+    lengths not yet seen are held until the input ends, then added.
     """
 
     def __init__(
@@ -45,7 +55,13 @@ class GraphAccumulator:
         strip_orientation=False,
         edge_mode="sum",
         max_tag_mb=100.0,
+        projection="all",
     ):
+        self.projection, self.relations = resolve_projection(projection)
+        self.filtered = self.projection != "all"
+        self.lengths = {}
+        self.pending = []
+        self.counts = RelationCounts()
         if edge_mode not in {"sum", "parallel"}:
             raise ValueError("edge_mode must be sum or parallel")
         if not math.isfinite(max_tag_mb) or max_tag_mb < 0:
@@ -100,6 +116,11 @@ class GraphAccumulator:
         if record.id in self.defined_segments:
             raise ValueError(f"duplicate segment {record.id!r}")
         self.defined_segments.add(record.id)
+        length = record.length
+        if length is None and record.sequence is not None:
+            length = len(record.sequence)
+        if length is not None:
+            self.lengths[record.id] = length
         for orientation in ("+", "-") if self.bidirected else (None,):
             node = (
                 record.id
@@ -206,6 +227,80 @@ class GraphAccumulator:
             "-",
         }:
             raise ValueError("invalid edge orientation")
+        relation = relation_class(record, self.lengths)
+        if relation is None:
+            # The unfiltered projection keeps the original insertion order and
+            # classifies only for the manifest once lengths are known.
+            self.pending.append(record)
+            if self.filtered:
+                return
+        else:
+            included = relation in self.relations
+            self.counts.add(relation, record_letter(record), included)
+            if not included:
+                return
+        self._insert(record)
+
+    def resolve_pending(self):
+        """Classify E records that arrived before their segment lengths."""
+        pending, self.pending = self.pending, []
+        for record in pending:
+            relation = relation_class(record, self.lengths) or "unclassified"
+            included = relation in self.relations
+            self.counts.add(relation, record_letter(record), included)
+            if self.filtered and included:
+                try:
+                    self._insert(record)
+                except ValueError as exc:
+                    line = getattr(record, "line_number", "?")
+                    raise ValueError(f"E record at line {line}: {exc}") from exc
+
+    def manifest(self, *, subdivided=False):
+        """Describe exactly which relations and policies produced this graph."""
+        from .version import __version__
+
+        self.resolve_pending()
+        if self.bidirected:
+            orientation = (
+                "oriented vertices <id>:+ / <id>:- with reverse-complement edges"
+            )
+        elif self.strip_orientation:
+            orientation = "not recorded"
+        else:
+            orientation = "edge attributes orientation_from / orientation_to"
+        weight = (
+            f"numeric tag {self.weight_tag}; records without it contribute 1"
+            if self.weight_tag
+            else "each record contributes 1"
+        )
+        aggregation = (
+            "one edge per vertex pair; weights summed; multiplicity counts records"
+            if self.edge_mode == "sum"
+            else "one graph edge per record; adjacency sums weights"
+        )
+        return {
+            "format": "gfa2network-projection/1",
+            "version": __version__,
+            "projection": self.projection,
+            "relations": sorted(self.relations),
+            "records": self.counts.summary(self.relations),
+            "directed": self.directed,
+            "bidirected": self.bidirected,
+            "orientation": orientation,
+            "edge_mode": self.edge_mode,
+            "aggregation": aggregation,
+            "weight": weight,
+            "edge_cost": (
+                "distance functions use edge weight as cost by default "
+                "(cheapest parallel edge); cost='hops' charges 1 per edge"
+            ),
+            "self_loops": "counted once per record",
+            "gap_estimates": "gap_distance/gap_variance metadata only; never edge cost",
+            "subdivided": subdivided,
+            "vertices": len(self.node_index),
+        }
+
+    def _insert(self, record):
         weight = (
             (record.tags or {}).get(self.weight_tag, 1.0) if self.weight_tag else 1.0
         )
@@ -251,6 +346,7 @@ class GraphAccumulator:
             self.edge(*second, copied)
 
     def finish_graph(self):
+        self.resolve_pending()
         if not self.build_graph:
             return None
         if self.backend == "networkx":
@@ -275,6 +371,7 @@ class GraphAccumulator:
         return graph
 
     def finish_matrix(self, dtype="float64", asymmetric=None):
+        self.resolve_pending()
         if not self.build_matrix:
             return None
         n = len(self.node_index)
