@@ -327,6 +327,7 @@ def genome_distance_matrix(
     max_dense_gb=5.0,
     projection="all",
     cost="weight",
+    names=None,
 ):
     """Pairwise path-set distances using the same definitions as genome_distance.
 
@@ -336,7 +337,8 @@ def genome_distance_matrix(
     Mean pairwise self-distances are computed, not artificially set to zero.
     ``return_details=True`` additionally returns names, coverage, reachable and
     total contribution matrices, plus the graph projection manifest and cost.
-    Output allocation is guarded before creation.
+    ``names`` restricts the matrix to those paths (in that order); the graph
+    still contains every record. Output allocation is guarded before creation.
     """
     method = _method(method)
     _policy(unreachable)
@@ -355,7 +357,16 @@ def genome_distance_matrix(
         return_paths=True,
         projection=projection,
     )
-    names = list(paths)
+    if names is None:
+        names = list(paths)
+    else:
+        names = [
+            name.encode() if raw_bytes_id and isinstance(name, str) else name
+            for name in names
+        ]
+        missing = [name for name in names if name not in paths]
+        if missing:
+            raise KeyError(f"unknown path: {missing[0]!r}")
     if not names:
         raise ValueError("input contains no named P/O/W paths")
     n = len(names)

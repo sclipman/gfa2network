@@ -219,6 +219,12 @@ def test_gaps_and_containment_shortcuts_are_not_contiguous_sequence(tmp_path):
     assert details["projection"]["projection"] == "traversal"
     assert details["projection"]["records"]["gap"]["included"] is False
     assert details["cost"] == "weight"
+    subset, info = genome_distance_matrix(
+        str(gfa), names=["right", "left"], return_details=True
+    )
+    assert info["names"] == ["right", "left"]
+    with pytest.raises(KeyError, match="unknown path"):
+        genome_distance_matrix(str(gfa), names=["nope"])
 
 
 def test_hop_cost_is_independent_of_record_multiplicity(tmp_path):
